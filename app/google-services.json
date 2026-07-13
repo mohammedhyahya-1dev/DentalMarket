@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "921438998372",
+    "project_id": "dentalmarket-abdf6",
+    "storage_bucket": "dentalmarket-abdf6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:921438998372:android:f4ecade0472864ce8ef471",
+        "android_client_info": {
+          "package_name": "com.dentalmarket.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBcKKfGj-WH_ntQ3PeILUeRA0Y8pbRUsr0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
