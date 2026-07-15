@@ -29,4 +29,3 @@ androidx-compose-material3 = { group = "androidx.compose.material3", name = "mat
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 
-https://claude.ai/share/0b5fdd86-a942-4912-940d-ba94c84ebbe6
