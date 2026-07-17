@@ -25,6 +25,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -45,6 +46,9 @@ fun MarketplaceScreen(
     marketplaceViewModel: MarketplaceViewModel = viewModel()
 ) {
     val cartItems by cartViewModel.cartItems.collectAsState()
+    LaunchedEffect(Unit) {
+        marketplaceViewModel.loadListings()
+    }
     val itemCount = cartItems.sumOf { it.quantity }
     val listings = marketplaceViewModel.listings.value
     val isLoading = marketplaceViewModel.isLoading.value

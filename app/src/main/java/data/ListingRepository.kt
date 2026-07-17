@@ -23,7 +23,7 @@ class ListingRepository {
             val listings = snapshot.documents.mapNotNull { doc ->
                 doc.toObject(Listing::class.java)?.copy(id = doc.id)
             }
-            Result.success(listings)
+            Result.success(listings.filter { it.status != "SOLD" })
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -34,6 +34,15 @@ class ListingRepository {
             val doc = listingsCollection.document(id).get().await()
             val listing = doc.toObject(Listing::class.java)?.copy(id = doc.id)
             Result.success(listing)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun markAsSold(listingId: String): Result<Unit> {
+        return try {
+            listingsCollection.document(listingId).update("status", "SOLD").await()
+            Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }

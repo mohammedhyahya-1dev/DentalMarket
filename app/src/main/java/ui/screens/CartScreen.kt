@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -25,9 +26,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -42,7 +40,9 @@ fun CartScreen(
     onBack: () -> Unit
 ) {
     val cartItems by cartViewModel.cartItems.collectAsState()
-    var showCheckoutMessage by remember { mutableStateOf(false) }
+    val isPlacingOrder = cartViewModel.isPlacingOrder.value
+    val orderPlacedSuccess = cartViewModel.orderPlacedSuccess.value
+    val orderErrorMessage = cartViewModel.orderErrorMessage.value
 
     Scaffold(
         topBar = {
@@ -58,9 +58,15 @@ fun CartScreen(
         bottomBar = {
             if (cartItems.isNotEmpty()) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    if (showCheckoutMessage) {
+                    Text(
+                        "Cash on delivery \u2014 pay when your order arrives.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    orderErrorMessage?.let {
                         Text(
-                            "This is a test build \u2014 checkout will be added in the next phase.",
+                            it,
+                            color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
@@ -78,39 +84,50 @@ fun CartScreen(
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Button(
-                        onClick = { showCheckoutMessage = true },
+                        onClick = { cartViewModel.checkout() },
+                        enabled = !isPlacingOrder,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Checkout")
+                        Text(if (isPlacingOrder) "Placing Order..." else "Place Order (Cash on Delivery)")
                     }
                 }
             }
         }
     ) { padding ->
-        if (cartItems.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("Your cart is empty", style = MaterialTheme.typography.titleMedium)
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(horizontal = 16.dp)
-            ) {
-                items(cartItems, key = { it.listing.id }) { item ->
-                    CartItemRow(
-                        item = item,
-                        onIncrease = { cartViewModel.updateQuantity(item.listing.id, item.quantity + 1) },
-                        onDecrease = { cartViewModel.updateQuantity(item.listing.id, item.quantity - 1) },
-                        onRemove = { cartViewModel.removeFromCart(item.listing.id) }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentAlignment = Alignment.Center
+        ) {
+            when {
+                isPlacingOrder -> CircularProgressIndicator()
+                orderPlacedSuccess && cartItems.isEmpty() -> {
+                    Text(
+                        "Order placed! \u2705\nWe'll be in touch to arrange delivery.",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary
                     )
-                    HorizontalDivider()
+                }
+                cartItems.isEmpty() -> {
+                    Text("Your cart is empty", style = MaterialTheme.typography.titleMedium)
+                }
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp)
+                    ) {
+                        items(cartItems, key = { it.listing.id }) { item ->
+                            CartItemRow(
+                                item = item,
+                                onIncrease = { cartViewModel.updateQuantity(item.listing.id, item.quantity + 1) },
+                                onDecrease = { cartViewModel.updateQuantity(item.listing.id, item.quantity - 1) },
+                                onRemove = { cartViewModel.removeFromCart(item.listing.id) }
+                            )
+                            HorizontalDivider()
+                        }
+                    }
                 }
             }
         }

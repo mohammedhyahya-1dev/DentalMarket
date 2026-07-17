@@ -3,6 +3,7 @@ package com.dentalmarket.app.viewmodel
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dentalmarket.app.data.AuthRepository
 import com.dentalmarket.app.data.ListingRepository
 import com.dentalmarket.app.model.Listing
 import com.google.firebase.auth.FirebaseAuth
@@ -10,6 +11,7 @@ import kotlinx.coroutines.launch
 
 class ListingViewModel : ViewModel() {
     private val repository = ListingRepository()
+    private val authRepository = AuthRepository()
 
     var name = mutableStateOf("")
     var category = mutableStateOf("")
@@ -38,8 +40,12 @@ class ListingViewModel : ViewModel() {
         errorMessage.value = null
 
         viewModelScope.launch {
+            val profileResult = authRepository.getCurrentUserProfile()
+            val sellerName = profileResult.getOrNull()?.name ?: "Unknown Seller"
+
             val listing = Listing(
                 sellerId = sellerId,
+                sellerName = sellerName,
                 name = name.value,
                 category = category.value,
                 condition = condition.value,
