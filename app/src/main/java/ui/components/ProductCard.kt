@@ -27,13 +27,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.dentalmarket.app.model.Product
+import com.dentalmarket.app.model.Condition
+import com.dentalmarket.app.model.Listing
 import com.dentalmarket.app.ui.theme.BoneWhite
 import com.dentalmarket.app.ui.theme.WarmAmber
 
 @Composable
 fun ProductCard(
-    product: Product,
+    listing: Listing,
     onClick: () -> Unit,
     onAddToCart: () -> Unit,
     modifier: Modifier = Modifier
@@ -55,21 +56,21 @@ fun ProductCard(
                     .background(BoneWhite, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                Text(product.emoji, fontSize = 26.sp)
+                Text(listing.emoji, fontSize = 26.sp)
             }
             Spacer(modifier = Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    product.name,
+                    listing.name,
                     style = MaterialTheme.typography.titleMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                ConditionBadge(product.condition)
+                ConditionBadge(Condition.valueOf(listing.condition))
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    "$" + "%.2f".format(product.price),
+                    "$" + "%.2f".format(listing.price),
                     style = MaterialTheme.typography.titleMedium,
                     color = WarmAmber
                 )

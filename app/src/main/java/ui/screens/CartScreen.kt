@@ -71,7 +71,7 @@ fun CartScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "Total: $" + "%.2f".format(cartItems.sumOf { it.product.price * it.quantity }),
+                            "Total: $" + "%.2f".format(cartItems.sumOf { it.listing.price * it.quantity }),
                             style = MaterialTheme.typography.titleLarge,
                             color = WarmAmber
                         )
@@ -103,12 +103,12 @@ fun CartScreen(
                     .padding(padding)
                     .padding(horizontal = 16.dp)
             ) {
-                items(cartItems, key = { it.product.id }) { item ->
+                items(cartItems, key = { it.listing.id }) { item ->
                     CartItemRow(
                         item = item,
-                        onIncrease = { cartViewModel.updateQuantity(item.product.id, item.quantity + 1) },
-                        onDecrease = { cartViewModel.updateQuantity(item.product.id, item.quantity - 1) },
-                        onRemove = { cartViewModel.removeFromCart(item.product.id) }
+                        onIncrease = { cartViewModel.updateQuantity(item.listing.id, item.quantity + 1) },
+                        onDecrease = { cartViewModel.updateQuantity(item.listing.id, item.quantity - 1) },
+                        onRemove = { cartViewModel.removeFromCart(item.listing.id) }
                     )
                     HorizontalDivider()
                 }

@@ -34,12 +34,12 @@ fun CartItemRow(
             .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(item.product.emoji, fontSize = 28.sp)
+        Text(item.listing.emoji, fontSize = 28.sp)
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(item.product.name, style = MaterialTheme.typography.titleMedium)
+            Text(item.listing.name, style = MaterialTheme.typography.titleMedium)
             Text(
-                "$" + "%.2f".format(item.product.price) + " each",
+                "$" + "%.2f".format(item.listing.price) + " each",
                 style = MaterialTheme.typography.bodyMedium
             )
         }

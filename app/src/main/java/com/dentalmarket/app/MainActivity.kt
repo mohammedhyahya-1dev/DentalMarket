@@ -1,6 +1,7 @@
 package com.dentalmarket.app
 
 import android.os.Bundle
+import com.dentalmarket.app.ui.screens.SellScreen
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
@@ -78,16 +79,22 @@ fun DentalMarketApp() {
                     navController.navigate("login") {
                         popUpTo(0) { inclusive = true }
                     }
-                }
+                },
+                onSellClick = { navController.navigate("sell") }
+            )
+        }
+        composable("sell") {
+            SellScreen(
+                onPosted = { navController.popBackStack() }
             )
         }
         composable(
             "product/{productId}",
-            arguments = listOf(navArgument("productId") { type = NavType.IntType })
+            arguments = listOf(navArgument("productId") { type = NavType.StringType })
         ) { backStackEntry ->
-            val productId = backStackEntry.arguments?.getInt("productId") ?: 0
+            val productId = backStackEntry.arguments?.getString("productId") ?: ""
             ProductDetailScreen(
-                productId = productId,
+                listingId = productId,
                 cartViewModel = cartViewModel,
                 onBack = { navController.popBackStack() }
             )

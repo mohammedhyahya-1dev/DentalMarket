@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -23,6 +24,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -32,7 +34,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.dentalmarket.app.data.ProductRepository
+import com.dentalmarket.app.data.ListingRepository
+import com.dentalmarket.app.model.Condition
+import com.dentalmarket.app.model.Listing
 import com.dentalmarket.app.ui.components.ConditionBadge
 import com.dentalmarket.app.ui.theme.BoneWhite
 import com.dentalmarket.app.ui.theme.WarmAmber
@@ -41,18 +45,24 @@ import com.dentalmarket.app.viewmodel.CartViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProductDetailScreen(
-    productId: Int,
+    listingId: String,
     cartViewModel: CartViewModel,
     onBack: () -> Unit
 ) {
-    val product = ProductRepository.products.find { it.id == productId } ?: return
+    var listing by remember { mutableStateOf<Listing?>(null) }
     var quantity by remember { mutableIntStateOf(1) }
     var showAddedMessage by remember { mutableStateOf(false) }
+    val repository = remember { ListingRepository() }
+
+    LaunchedEffect(listingId) {
+        val result = repository.getListingById(listingId)
+        result.onSuccess { listing = it }
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(product.name, style = MaterialTheme.typography.titleLarge) },
+                title = { Text(listing?.name ?: "", style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
@@ -61,6 +71,17 @@ fun ProductDetailScreen(
             )
         }
     ) { padding ->
+        val currentListing = listing
+        if (currentListing == null) {
+            Box(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+            return@Scaffold
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -73,20 +94,20 @@ fun ProductDetailScreen(
                     .background(BoneWhite, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                Text(product.emoji, fontSize = 48.sp)
+                Text(currentListing.emoji, fontSize = 48.sp)
             }
             Spacer(modifier = Modifier.height(16.dp))
-            ConditionBadge(product.condition)
+            ConditionBadge(Condition.valueOf(currentListing.condition))
             Spacer(modifier = Modifier.height(12.dp))
-            Text(product.category, style = MaterialTheme.typography.bodyMedium)
+            Text(currentListing.category, style = MaterialTheme.typography.bodyMedium)
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                "$" + "%.2f".format(product.price),
+                "$" + "%.2f".format(currentListing.price),
                 style = MaterialTheme.typography.headlineMedium,
                 color = WarmAmber
             )
             Spacer(modifier = Modifier.height(16.dp))
-            Text(product.description, style = MaterialTheme.typography.bodyLarge)
+            Text(currentListing.description, style = MaterialTheme.typography.bodyLarge)
             Spacer(modifier = Modifier.height(24.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -105,7 +126,7 @@ fun ProductDetailScreen(
 
             Button(
                 onClick = {
-                    cartViewModel.addToCart(product, quantity)
+                    cartViewModel.addToCart(currentListing, quantity)
                     showAddedMessage = true
                 },
                 modifier = Modifier.fillMaxWidth()
