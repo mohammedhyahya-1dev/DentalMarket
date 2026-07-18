@@ -9,7 +9,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -23,13 +26,15 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.dentalmarket.app.data.AuthRepository
 import com.dentalmarket.app.ui.components.ProductCard
 import com.dentalmarket.app.ui.theme.WarmAmber
 import com.dentalmarket.app.viewmodel.CartViewModel
@@ -43,6 +48,9 @@ fun MarketplaceScreen(
     onCartClick: () -> Unit,
     onSignOut: () -> Unit,
     onSellClick: () -> Unit,
+    onMyOrdersClick: () -> Unit,
+    onAdminOrdersClick: () -> Unit,
+    onMyListingsClick: () -> Unit,
     marketplaceViewModel: MarketplaceViewModel = viewModel()
 ) {
     val cartItems by cartViewModel.cartItems.collectAsState()
@@ -52,12 +60,25 @@ fun MarketplaceScreen(
     val itemCount = cartItems.sumOf { it.quantity }
     val listings = marketplaceViewModel.listings.value
     val isLoading = marketplaceViewModel.isLoading.value
+    val authRepository = remember { AuthRepository() }
+    val isAdmin = authRepository.isAdmin
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("DentalMarket", style = MaterialTheme.typography.headlineMedium) },
                 actions = {
+                    if (isAdmin) {
+                        IconButton(onClick = onAdminOrdersClick) {
+                            Icon(Icons.Filled.Settings, contentDescription = "Admin orders")
+                        }
+                    }
+                    IconButton(onClick = onMyListingsClick) {
+                        Icon(Icons.Filled.Edit, contentDescription = "My listings")
+                    }
+                    IconButton(onClick = onMyOrdersClick) {
+                        Icon(Icons.Filled.List, contentDescription = "My orders")
+                    }
                     BadgedBox(
                         badge = {
                             if (itemCount > 0) {

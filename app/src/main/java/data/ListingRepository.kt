@@ -39,9 +39,41 @@ class ListingRepository {
         }
     }
 
+    // Every listing one specific dentist has posted, sold or not \u2014
+    // powers the "My Listings" management screen.
+    suspend fun getListingsBySeller(sellerId: String): Result<List<Listing>> {
+        return try {
+            val snapshot = listingsCollection.whereEqualTo("sellerId", sellerId).get().await()
+            val listings = snapshot.documents.mapNotNull { doc ->
+                doc.toObject(Listing::class.java)?.copy(id = doc.id)
+            }
+            Result.success(listings)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun markAsSold(listingId: String): Result<Unit> {
         return try {
             listingsCollection.document(listingId).update("status", "SOLD").await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updateListing(listingId: String, listing: Listing): Result<Unit> {
+        return try {
+            listingsCollection.document(listingId).set(listing).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteListing(listingId: String): Result<Unit> {
+        return try {
+            listingsCollection.document(listingId).delete().await()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)

@@ -1,7 +1,6 @@
 package com.dentalmarket.app
 
 import android.os.Bundle
-import com.dentalmarket.app.ui.screens.SellScreen
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,10 +13,14 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.dentalmarket.app.ui.screens.AdminOrdersScreen
 import com.dentalmarket.app.ui.screens.CartScreen
 import com.dentalmarket.app.ui.screens.LoginScreen
 import com.dentalmarket.app.ui.screens.MarketplaceScreen
+import com.dentalmarket.app.ui.screens.MyListingsScreen
+import com.dentalmarket.app.ui.screens.MyOrdersScreen
 import com.dentalmarket.app.ui.screens.ProductDetailScreen
+import com.dentalmarket.app.ui.screens.SellScreen
 import com.dentalmarket.app.ui.screens.SignUpScreen
 import com.dentalmarket.app.ui.theme.DentalMarketTheme
 import com.dentalmarket.app.viewmodel.AuthViewModel
@@ -42,8 +45,6 @@ fun DentalMarketApp() {
     val cartViewModel: CartViewModel = viewModel()
     val authViewModel: AuthViewModel = viewModel()
 
-    // If Firebase already remembers this dentist from last time, skip
-    // straight to the marketplace instead of asking them to log in again.
     val startDestination = if (authViewModel.isLoggedIn) "marketplace" else "login"
 
     NavHost(navController = navController, startDestination = startDestination) {
@@ -80,12 +81,25 @@ fun DentalMarketApp() {
                         popUpTo(0) { inclusive = true }
                     }
                 },
-                onSellClick = { navController.navigate("sell") }
+                onSellClick = { navController.navigate("sell") },
+                onMyOrdersClick = { navController.navigate("myOrders") },
+                onAdminOrdersClick = { navController.navigate("adminOrders") },
+                onMyListingsClick = { navController.navigate("myListings") }
             )
         }
         composable("sell") {
             SellScreen(
                 onPosted = { navController.popBackStack() }
+            )
+        }
+        composable(
+            "editListing/{listingId}",
+            arguments = listOf(navArgument("listingId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val listingId = backStackEntry.arguments?.getString("listingId") ?: ""
+            SellScreen(
+                onPosted = { navController.popBackStack() },
+                listingId = listingId
             )
         }
         composable(
@@ -103,6 +117,22 @@ fun DentalMarketApp() {
             CartScreen(
                 cartViewModel = cartViewModel,
                 onBack = { navController.popBackStack() }
+            )
+        }
+        composable("myOrders") {
+            MyOrdersScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable("adminOrders") {
+            AdminOrdersScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable("myListings") {
+            MyListingsScreen(
+                onBack = { navController.popBackStack() },
+                onEditListing = { id -> navController.navigate("editListing/$id") }
             )
         }
     }

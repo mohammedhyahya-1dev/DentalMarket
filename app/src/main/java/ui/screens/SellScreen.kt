@@ -15,9 +15,17 @@ import com.dentalmarket.app.viewmodel.ListingViewModel
 @Composable
 fun SellScreen(
     onPosted: () -> Unit,
+    listingId: String? = null,
     viewModel: ListingViewModel = viewModel()
 ) {
     var conditionExpanded by remember { mutableStateOf(false) }
+    val isEditMode = listingId != null
+
+    LaunchedEffect(listingId) {
+        if (listingId != null) {
+            viewModel.loadListingForEdit(listingId)
+        }
+    }
 
     LaunchedEffect(viewModel.postSuccess.value) {
         if (viewModel.postSuccess.value) onPosted()
@@ -30,7 +38,10 @@ fun SellScreen(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("Sell a Device", style = MaterialTheme.typography.headlineSmall)
+        Text(
+            if (isEditMode) "Edit Listing" else "Sell a Device",
+            style = MaterialTheme.typography.headlineSmall
+        )
 
         OutlinedTextField(
             value = viewModel.name.value,
@@ -103,7 +114,13 @@ fun SellScreen(
             enabled = !viewModel.isLoading.value,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(if (viewModel.isLoading.value) "Posting..." else "Post Listing")
+            Text(
+                when {
+                    viewModel.isLoading.value -> if (isEditMode) "Saving..." else "Posting..."
+                    isEditMode -> "Save Changes"
+                    else -> "Post Listing"
+                }
+            )
         }
     }
 }
