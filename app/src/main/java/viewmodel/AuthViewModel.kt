@@ -57,6 +57,17 @@ class AuthViewModel : ViewModel() {
         }
     }
 
+    fun signInWithGoogle(idToken: String, onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _errorMessage.value = null
+            repository.signInWithGoogleIdToken(idToken)
+                .onSuccess { onSuccess() }
+                .onFailure { _errorMessage.value = it.message ?: "Google sign-in failed" }
+            _isLoading.value = false
+        }
+    }
+
     fun signOut() {
         repository.signOut()
     }

@@ -3,6 +3,7 @@ package com.dentalmarket.app.data
 import com.dentalmarket.app.model.DentalUser
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.auth.GoogleAuthProvider
 
 class AuthRepository {
 
@@ -48,6 +49,25 @@ class AuthRepository {
     suspend fun logIn(email: String, password: String): Result<Unit> {
         return try {
             auth.signInWithEmailAndPassword(email, password).awaitResult()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    suspend fun signInWithGoogleIdToken(idToken: String): Result<Unit> {
+        return try {
+            val firebaseCredential = GoogleAuthProvider.getCredential(idToken, null)
+            val authResult = auth.signInWithCredential(firebaseCredential).awaitResult()
+            val user = authResult.user ?: throw Exception("Signed in but no user was returned")
+
+            // First time this Google account signs in, create their profile doc —
+            // same as email/password sign-up does. Skip it if they've signed in before.
+            val existingDoc = firestore.collection("users").document(user.uid).get().awaitResult()
+            if (!existingDoc.exists()) {
+                val newUser = DentalUser(uid = user.uid, name = user.displayName ?: "", email = user.email ?: "")
+                firestore.collection("users").document(user.uid).set(newUser).awaitResult()
+            }
+
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)

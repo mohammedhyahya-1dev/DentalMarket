@@ -23,6 +23,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.dentalmarket.app.viewmodel.AuthViewModel
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialException
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import kotlinx.coroutines.launch
 
 @Composable
 fun LoginScreen(
@@ -35,6 +45,8 @@ fun LoginScreen(
 
     val isLoading by authViewModel.isLoading.collectAsState()
     val errorMessage by authViewModel.errorMessage.collectAsState()
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     Column(
         modifier = Modifier
@@ -84,5 +96,36 @@ fun LoginScreen(
         TextButton(onClick = onNavigateToSignUp, modifier = Modifier.fillMaxWidth()) {
             Text("Don't have an account? Sign up")
         }
+    }
+    Spacer(modifier = Modifier.height(12.dp))
+
+    OutlinedButton(
+        onClick = {
+            coroutineScope.launch {
+                val credentialManager = CredentialManager.create(context)
+                val googleIdOption = GetSignInWithGoogleOption
+                    .Builder("921438998372-atagvcl4ukgp89q1chc0mo36kb3cvrpi.apps.googleusercontent.com")
+                    .build()
+                val request = GetCredentialRequest.Builder()
+                    .addCredentialOption(googleIdOption)
+                    .build()
+                try {
+                    val result = credentialManager.getCredential(context, request)
+                    val credential = result.credential
+                    if (credential is CustomCredential &&
+                        credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+                    ) {
+                        val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
+                        authViewModel.signInWithGoogle(googleIdTokenCredential.idToken) { onLoginSuccess() }
+                    }
+                } catch (e: GetCredentialException) {
+                    // User cancelled the picker, or no Google account is available — safe to ignore
+                }
+            }
+        },
+        enabled = !isLoading,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text("Continue with Google")
     }
 }
