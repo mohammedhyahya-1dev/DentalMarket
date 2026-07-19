@@ -20,6 +20,7 @@ import com.dentalmarket.app.ui.screens.MarketplaceScreen
 import com.dentalmarket.app.ui.screens.MyListingsScreen
 import com.dentalmarket.app.ui.screens.MyOrdersScreen
 import com.dentalmarket.app.ui.screens.ProductDetailScreen
+import com.dentalmarket.app.ui.screens.ProfileScreen
 import com.dentalmarket.app.ui.screens.SellScreen
 import com.dentalmarket.app.ui.screens.SignUpScreen
 import com.dentalmarket.app.ui.theme.DentalMarketTheme
@@ -75,16 +76,22 @@ fun DentalMarketApp() {
                 cartViewModel = cartViewModel,
                 onProductClick = { id -> navController.navigate("product/$id") },
                 onCartClick = { navController.navigate("cart") },
+                onProfileClick = { navController.navigate("profile") },
+                onSellClick = { navController.navigate("sell") },
+                onMyOrdersClick = { navController.navigate("myOrders") },
+                onAdminOrdersClick = { navController.navigate("adminOrders") },
+                onMyListingsClick = { navController.navigate("myListings") }
+            )
+        }
+        composable("profile") {
+            ProfileScreen(
+                onBack = { navController.popBackStack() },
                 onSignOut = {
                     authViewModel.signOut()
                     navController.navigate("login") {
                         popUpTo(0) { inclusive = true }
                     }
-                },
-                onSellClick = { navController.navigate("sell") },
-                onMyOrdersClick = { navController.navigate("myOrders") },
-                onAdminOrdersClick = { navController.navigate("adminOrders") },
-                onMyListingsClick = { navController.navigate("myListings") }
+                }
             )
         }
         composable("sell") {

@@ -5,10 +5,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -31,7 +31,7 @@ fun MarketplaceScreen(
     cartViewModel: CartViewModel,
     onProductClick: (String) -> Unit,
     onCartClick: () -> Unit,
-    onSignOut: () -> Unit,
+    onProfileClick: () -> Unit,
     onSellClick: () -> Unit,
     onMyOrdersClick: () -> Unit,
     onAdminOrdersClick: () -> Unit,
@@ -94,8 +94,8 @@ fun MarketplaceScreen(
                             Icon(Icons.Filled.ShoppingCart, contentDescription = "Cart")
                         }
                     }
-                    IconButton(onClick = onSignOut, modifier = Modifier.padding(end = 8.dp)) {
-                        Icon(Icons.Filled.ExitToApp, contentDescription = "Sign out")
+                    IconButton(onClick = onProfileClick, modifier = Modifier.padding(end = 8.dp)) {
+                        Icon(Icons.Filled.AccountCircle, contentDescription = "My profile")
                     }
                 }
             )
