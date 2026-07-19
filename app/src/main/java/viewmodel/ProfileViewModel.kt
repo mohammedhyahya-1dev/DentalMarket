@@ -14,15 +14,29 @@ class ProfileViewModel : ViewModel() {
     var isLoading = mutableStateOf(false)
     var errorMessage = mutableStateOf<String?>(null)
 
+    var isEmailVerified = mutableStateOf(authRepository.isEmailVerified)
+    var resendSuccess = mutableStateOf(false)
+
     val isAdmin: Boolean
         get() = authRepository.isAdmin
 
     fun loadProfile() {
         isLoading.value = true
         viewModelScope.launch {
+            authRepository.reloadUser()
+            isEmailVerified.value = authRepository.isEmailVerified
+
             val result = authRepository.getCurrentUserProfile()
             isLoading.value = false
             result.onSuccess { profile.value = it }
+            result.onFailure { errorMessage.value = it.message }
+        }
+    }
+
+    fun resendVerificationEmail() {
+        viewModelScope.launch {
+            val result = authRepository.resendVerificationEmail()
+            result.onSuccess { resendSuccess.value = true }
             result.onFailure { errorMessage.value = it.message }
         }
     }

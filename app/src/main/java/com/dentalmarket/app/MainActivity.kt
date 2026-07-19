@@ -91,7 +91,9 @@ fun DentalMarketApp() {
                     navController.navigate("login") {
                         popUpTo(0) { inclusive = true }
                     }
-                }
+                },
+                onMyQuestionsClick = { navController.navigate("myQuestions") },
+                onAdminInquiriesClick = { navController.navigate("adminInquiries") }
             )
         }
         composable("sell") {
