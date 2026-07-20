@@ -14,12 +14,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -36,23 +39,30 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dentalmarket.app.data.ListingRepository
 import com.dentalmarket.app.model.Condition
+import com.dentalmarket.app.model.Inquiry
 import com.dentalmarket.app.model.Listing
 import com.dentalmarket.app.ui.components.ConditionBadge
 import com.dentalmarket.app.ui.theme.BoneWhite
 import com.dentalmarket.app.ui.theme.WarmAmber
 import com.dentalmarket.app.viewmodel.CartViewModel
+import com.dentalmarket.app.viewmodel.InquiryViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProductDetailScreen(
     listingId: String,
     cartViewModel: CartViewModel,
+    inquiryViewModel: InquiryViewModel,
+    buyerId: String,
+    buyerName: String,
     onBack: () -> Unit
 ) {
     var listing by remember { mutableStateOf<Listing?>(null) }
     var quantity by remember { mutableIntStateOf(1) }
     var showAddedMessage by remember { mutableStateOf(false) }
     val repository = remember { ListingRepository() }
+    var showQuestionDialog by remember { mutableStateOf(false) }
+    var questionText by remember { mutableStateOf("") }
 
     LaunchedEffect(listingId) {
         val result = repository.getListingById(listingId)
@@ -134,12 +144,62 @@ fun ProductDetailScreen(
                 Text("Add to Cart")
             }
 
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedButton(
+                onClick = { showQuestionDialog = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Ask a Question")
+            }
+
             if (showAddedMessage) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     "Added to cart \u2713",
                     color = MaterialTheme.colorScheme.primary,
                     style = MaterialTheme.typography.bodyMedium
+                )
+            }
+
+            if (showQuestionDialog) {
+                AlertDialog(
+                    onDismissRequest = { showQuestionDialog = false },
+                    title = { Text("Ask a Question") },
+                    text = {
+                        OutlinedTextField(
+                            value = questionText,
+                            onValueChange = { questionText = it },
+                            label = { Text("Your question") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                inquiryViewModel.submitInquiry(
+                                    Inquiry(
+                                        listingId = currentListing.id,
+                                        listingName = currentListing.name,
+                                        buyerId = buyerId,
+                                        buyerName = buyerName,
+                                        sellerName = currentListing.sellerName
+                                    ).copy(question = questionText)
+                                ) {
+                                    showQuestionDialog = false
+                                    questionText = ""
+                                }
+                            },
+                            enabled = questionText.isNotBlank()
+                        ) {
+                            Text("Send")
+                        }
+                    },
+                    dismissButton = {
+                        OutlinedButton(onClick = { showQuestionDialog = false }) {
+                            Text("Cancel")
+                        }
+                    }
                 )
             }
         }

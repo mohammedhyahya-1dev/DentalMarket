@@ -26,6 +26,9 @@ import com.dentalmarket.app.ui.screens.SignUpScreen
 import com.dentalmarket.app.ui.theme.DentalMarketTheme
 import com.dentalmarket.app.viewmodel.AuthViewModel
 import com.dentalmarket.app.viewmodel.CartViewModel
+import com.dentalmarket.app.ui.screens.AdminInquiriesScreen
+import com.dentalmarket.app.ui.screens.MyQuestionsScreen
+import com.dentalmarket.app.viewmodel.InquiryViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,6 +47,7 @@ class MainActivity : ComponentActivity() {
 fun DentalMarketApp() {
     val navController = rememberNavController()
     val cartViewModel: CartViewModel = viewModel()
+    val inquiryViewModel: InquiryViewModel = viewModel()
     val authViewModel: AuthViewModel = viewModel()
 
     val startDestination = if (authViewModel.isLoggedIn) "marketplace" else "login"
@@ -119,6 +123,9 @@ fun DentalMarketApp() {
             ProductDetailScreen(
                 listingId = productId,
                 cartViewModel = cartViewModel,
+                inquiryViewModel = inquiryViewModel,
+                buyerId = authViewModel.currentUserId ?: "",
+                buyerName = "",
                 onBack = { navController.popBackStack() }
             )
         }
@@ -144,5 +151,18 @@ fun DentalMarketApp() {
                 onEditListing = { id -> navController.navigate("editListing/$id") }
             )
         }
+            composable("myQuestions") {
+                MyQuestionsScreen(
+                    inquiryViewModel = inquiryViewModel,
+                    buyerId = authViewModel.currentUserId ?: "",
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable("adminInquiries") {
+                AdminInquiriesScreen(
+                    inquiryViewModel = inquiryViewModel,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+        }
     }
-}

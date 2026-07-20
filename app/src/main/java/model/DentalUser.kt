@@ -7,5 +7,15 @@ package com.dentalmarket.app.model
 data class DentalUser(
     val uid: String = "",
     val name: String = "",
-    val email: String = ""
+    val email: String = "",
+    val title: String = "",
+    val firstName: String = "",
+    val lastName: String = "",
+    val specialty: String = "",
+    val province: String = "",
+    val mobile: String = "",
+    val extraMobile: String = "",
+    // True once the dentist has filled in title/name/specialty/province/mobile.
+    // Controls whether MainActivity routes them to CompleteProfileScreen first.
+    val profileComplete: Boolean = false
 )
