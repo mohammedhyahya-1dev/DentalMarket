@@ -84,6 +84,36 @@ class AuthRepository {
         }
     }
 
+    suspend fun completeProfile(
+        title: String,
+        firstName: String,
+        lastName: String,
+        specialty: String,
+        province: String,
+        mobile: String,
+        extraMobile: String
+    ): Result<Unit> {
+        return try {
+            val uid = auth.currentUser?.uid ?: throw Exception("Not signed in")
+            val displayName = "$title $firstName $lastName".trim()
+            val updates = mapOf(
+                "title" to title,
+                "firstName" to firstName,
+                "lastName" to lastName,
+                "specialty" to specialty,
+                "province" to province,
+                "mobile" to mobile,
+                "extraMobile" to extraMobile,
+                "name" to displayName,
+                "profileComplete" to true
+            )
+            firestore.collection("users").document(uid).update(updates).awaitResult()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun resendVerificationEmail(): Result<Unit> {
         return try {
             auth.currentUser?.sendEmailVerification()?.awaitResult()
