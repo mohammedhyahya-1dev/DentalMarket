@@ -71,4 +71,29 @@ class AuthViewModel : ViewModel() {
     fun signOut() {
         repository.signOut()
     }
+    fun completeProfile(
+        title: String,
+        firstName: String,
+        lastName: String,
+        specialty: String,
+        province: String,
+        mobile: String,
+        extraMobile: String,
+        onSuccess: () -> Unit
+    ) {
+        if (title.isBlank() || firstName.isBlank() || lastName.isBlank() ||
+            specialty.isBlank() || province.isBlank() || mobile.isBlank()
+        ) {
+            _errorMessage.value = "Please fill in all required fields"
+            return
+        }
+        viewModelScope.launch {
+            _isLoading.value = true
+            _errorMessage.value = null
+            repository.completeProfile(title, firstName, lastName, specialty, province, mobile, extraMobile)
+                .onSuccess { onSuccess() }
+                .onFailure { _errorMessage.value = it.message ?: "Failed to save profile" }
+            _isLoading.value = false
+        }
+    }
 }
