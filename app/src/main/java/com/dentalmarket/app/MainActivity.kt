@@ -29,7 +29,6 @@ import com.dentalmarket.app.ui.screens.MyQuestionsScreen
 import com.dentalmarket.app.ui.screens.ProductDetailScreen
 import com.dentalmarket.app.ui.screens.ProfileScreen
 import com.dentalmarket.app.ui.screens.SellScreen
-import com.dentalmarket.app.ui.screens.SignUpScreen
 import com.dentalmarket.app.ui.theme.DentalMarketTheme
 import com.dentalmarket.app.viewmodel.AuthViewModel
 import com.dentalmarket.app.viewmodel.CartViewModel
@@ -55,9 +54,6 @@ fun DentalMarketApp() {
     val inquiryViewModel: InquiryViewModel = viewModel()
     val authViewModel: AuthViewModel = viewModel()
 
-    // Every successful login/signup routes here first — it silently checks
-    // whether the dentist has finished their profile, then sends them to the
-    // right place. Keeps that check in one spot instead of three.
     val startDestination = if (authViewModel.isLoggedIn) "authGate" else "login"
 
     NavHost(navController = navController, startDestination = startDestination) {
@@ -81,19 +77,7 @@ fun DentalMarketApp() {
                     navController.navigate("authGate") {
                         popUpTo("login") { inclusive = true }
                     }
-                },
-                onNavigateToSignUp = { navController.navigate("signup") }
-            )
-        }
-        composable("signup") {
-            SignUpScreen(
-                authViewModel = authViewModel,
-                onSignUpSuccess = {
-                    navController.navigate("authGate") {
-                        popUpTo("login") { inclusive = true }
-                    }
-                },
-                onNavigateToLogin = { navController.popBackStack() }
+                }
             )
         }
         composable("completeProfile") {
@@ -102,6 +86,12 @@ fun DentalMarketApp() {
                 onComplete = {
                     navController.navigate("marketplace") {
                         popUpTo("completeProfile") { inclusive = true }
+                    }
+                },
+                onSignOut = {
+                    authViewModel.signOut()
+                    navController.navigate("login") {
+                        popUpTo(0) { inclusive = true }
                     }
                 }
             )

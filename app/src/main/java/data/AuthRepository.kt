@@ -4,7 +4,7 @@ import com.dentalmarket.app.model.DentalUser
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.auth.GoogleAuthProvider
-import com.google.firebase.auth.FirebaseAuthInvalidUserException
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 
 class AuthRepository {
 
@@ -59,7 +59,7 @@ class AuthRepository {
         return try {
             auth.signInWithEmailAndPassword(email, password).awaitResult()
             Result.success(Unit)
-        } catch (e: FirebaseAuthInvalidUserException) {
+        } catch (e: FirebaseAuthInvalidCredentialsException) {
             // No account exists for this email yet \u2014 create one instead of
             // showing an error. "name" is left blank; CompleteProfileScreen
             // fills in the real name right after this.

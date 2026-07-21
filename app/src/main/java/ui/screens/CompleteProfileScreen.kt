@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.dentalmarket.app.viewmodel.AuthViewModel
+import androidx.compose.material3.TextButton
 
 private val titleOptions = listOf("Dr.", "Mr.", "Ms.")
 
@@ -48,7 +49,8 @@ private val provinceOptions = listOf(
 @Composable
 fun CompleteProfileScreen(
     authViewModel: AuthViewModel,
-    onComplete: () -> Unit
+    onComplete: () -> Unit,
+    onSignOut: () -> Unit
 ) {
     var title by remember { mutableStateOf("") }
     var firstName by remember { mutableStateOf("") }
@@ -69,6 +71,10 @@ fun CompleteProfileScreen(
     ) {
         Text("Complete Your Profile", style = MaterialTheme.typography.headlineMedium)
         Spacer(modifier = Modifier.height(8.dp))
+        TextButton(onClick = onSignOut) {
+            Text("Not you? Sign out")
+        }
+        Spacer(modifier = Modifier.height(12.dp))
         Text(
             "We need a few more details before you can start buying and selling.",
             style = MaterialTheme.typography.bodyMedium,
