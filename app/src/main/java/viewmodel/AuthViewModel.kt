@@ -67,7 +67,12 @@ class AuthViewModel : ViewModel() {
             _isLoading.value = false
         }
     }
-
+    fun checkProfileComplete(onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val result = repository.getCurrentUserProfile()
+            onResult(result.getOrNull()?.profileComplete ?: false)
+        }
+    }
     fun signOut() {
         repository.signOut()
     }
