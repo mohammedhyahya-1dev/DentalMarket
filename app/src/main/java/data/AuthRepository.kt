@@ -4,6 +4,7 @@ import com.dentalmarket.app.model.DentalUser
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
 
 class AuthRepository {
 
@@ -50,6 +51,31 @@ class AuthRepository {
         return try {
             auth.signInWithEmailAndPassword(email, password).awaitResult()
             Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    suspend fun logInOrSignUp(email: String, password: String): Result<Unit> {
+        return try {
+            auth.signInWithEmailAndPassword(email, password).awaitResult()
+            Result.success(Unit)
+        } catch (e: FirebaseAuthInvalidUserException) {
+            // No account exists for this email yet \u2014 create one instead of
+            // showing an error. "name" is left blank; CompleteProfileScreen
+            // fills in the real name right after this.
+            try {
+                val authResult = auth.createUserWithEmailAndPassword(email, password).awaitResult()
+                val uid = authResult.user?.uid
+                    ?: throw Exception("Account created but no user ID was returned")
+
+                val user = DentalUser(uid = uid, name = "", email = email)
+                firestore.collection("users").document(uid).set(user).awaitResult()
+                authResult.user?.sendEmailVerification()?.awaitResult()
+
+                Result.success(Unit)
+            } catch (signUpError: Exception) {
+                Result.failure(signUpError)
+            }
         } catch (e: Exception) {
             Result.failure(e)
         }
