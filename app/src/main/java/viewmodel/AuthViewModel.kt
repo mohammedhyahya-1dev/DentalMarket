@@ -61,6 +61,10 @@ class AuthViewModel : ViewModel() {
             _errorMessage.value = "Please fill in all fields"
             return
         }
+        if (!email.trim().lowercase().endsWith("@gmail.com")) {
+            _errorMessage.value = "Please use a Gmail address (@gmail.com)"
+            return
+        }
         if (password.length < 6) {
             _errorMessage.value = "Password must be at least 6 characters"
             return

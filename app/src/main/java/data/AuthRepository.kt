@@ -61,21 +61,26 @@ class AuthRepository {
             auth.signInWithEmailAndPassword(email, password).awaitResult()
             Result.success(Unit)
         } catch (e: FirebaseAuthInvalidCredentialsException) {
-            // Firebase's email enumeration protection means this same error
-            // fires for both "no account yet" and "wrong password" — it won't
-            // tell us which. We find out by attempting to create an account:
-            // if that specifically fails because the email is taken, we now
-            // know for certain the account exists and the password was wrong.
             try {
                 val authResult = auth.createUserWithEmailAndPassword(email, password).awaitResult()
-                val uid = authResult.user?.uid
+                val newUser = authResult.user
                     ?: throw Exception("Account created but no user ID was returned")
 
-                val user = DentalUser(uid = uid, name = "", email = email)
-                firestore.collection("users").document(uid).set(user).awaitResult()
-                authResult.user?.sendEmailVerification()?.awaitResult()
-
-                Result.success(Unit)
+                // This really was a brand-new email (Firebase didn't reject it as
+                // already-in-use), so this is genuinely a sign-up \u2014 only now do we
+                // enforce strong-password rules. Existing accounts logging in never
+                // reach this branch, so their older, weaker passwords still work.
+                if (!isPasswordStrong(password)) {
+                    newUser.delete().awaitResult()
+                    Result.failure(Exception(
+                        "Please choose a stronger password (8+ characters, with an uppercase letter, a number, and a special character)."
+                    ))
+                } else {
+                    val user = DentalUser(uid = newUser.uid, name = "", email = email)
+                    firestore.collection("users").document(newUser.uid).set(user).awaitResult()
+                    newUser.sendEmailVerification().awaitResult()
+                    Result.success(Unit)
+                }
             } catch (collisionError: FirebaseAuthUserCollisionException) {
                 Result.failure(Exception("Incorrect password. Please try again."))
             } catch (signUpError: Exception) {
@@ -85,6 +90,15 @@ class AuthRepository {
             Result.failure(e)
         }
     }
+
+    private fun isPasswordStrong(password: String): Boolean {
+        val hasMinLength = password.length >= 8
+        val hasUppercase = password.any { it.isUpperCase() }
+        val hasNumber = password.any { it.isDigit() }
+        val hasSpecialChar = password.any { !it.isLetterOrDigit() }
+        return hasMinLength && hasUppercase && hasNumber && hasSpecialChar
+    }
+
     suspend fun signInWithGoogleIdToken(idToken: String): Result<Unit> {
         return try {
             val firebaseCredential = GoogleAuthProvider.getCredential(idToken, null)

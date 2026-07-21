@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -56,6 +57,22 @@ fun LoginScreen(
     val errorMessage by authViewModel.errorMessage.collectAsState()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+
+    val hasMinLength = password.length >= 8
+    val hasUppercase = password.any { it.isUpperCase() }
+    val hasNumber = password.any { it.isDigit() }
+    val hasSpecialChar = password.any { !it.isLetterOrDigit() }
+    val rulesMet = listOf(hasMinLength, hasUppercase, hasNumber, hasSpecialChar).count { it }
+    val strengthLabel = when {
+        rulesMet <= 1 -> "Weak"
+        rulesMet <= 3 -> "Good"
+        else -> "Excellent"
+    }
+    val strengthColor = when (strengthLabel) {
+        "Weak" -> Color(0xFFE53935)
+        "Good" -> Color(0xFFFB8C00)
+        else -> Color(0xFF43A047)
+    }
 
     Column(
         modifier = Modifier
@@ -141,6 +158,39 @@ fun LoginScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
+        if (password.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(modifier = Modifier.fillMaxWidth().height(4.dp)) {
+                repeat(3) { index ->
+                    val segmentsFilled = when (strengthLabel) {
+                        "Weak" -> 1
+                        "Good" -> 2
+                        else -> 3
+                    }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .background(if (index < segmentsFilled) strengthColor else MaterialTheme.colorScheme.outlineVariant)
+                    )
+                    if (index < 2) Spacer(modifier = Modifier.width(4.dp))
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                "Password strength: $strengthLabel",
+                style = MaterialTheme.typography.bodySmall,
+                color = strengthColor
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+            PasswordRequirementRow(met = hasMinLength, text = "At least 8 characters")
+            PasswordRequirementRow(met = hasUppercase, text = "One uppercase letter")
+            PasswordRequirementRow(met = hasNumber, text = "One number")
+            PasswordRequirementRow(met = hasSpecialChar, text = "One special character (!@#\$ etc.)")
+        }
+
         if (errorMessage != null) {
             Spacer(modifier = Modifier.height(12.dp))
             Text(errorMessage ?: "", color = MaterialTheme.colorScheme.error)
@@ -161,5 +211,22 @@ fun LoginScreen(
                 Text("Continue")
             }
         }
+    }
+}
+
+@Composable
+private fun PasswordRequirementRow(met: Boolean, text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = if (met) "\u2713" else "\u25CB",
+            color = if (met) Color(0xFF43A047) else MaterialTheme.colorScheme.outline,
+            style = MaterialTheme.typography.bodySmall
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text,
+            style = MaterialTheme.typography.bodySmall,
+            color = if (met) Color(0xFF43A047) else MaterialTheme.colorScheme.outline
+        )
     }
 }
