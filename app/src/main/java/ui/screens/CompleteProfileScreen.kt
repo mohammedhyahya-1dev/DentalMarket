@@ -194,7 +194,7 @@ private fun PickerField(
                 .clickable { showDialog = true }
         )
     }
-
+    if (showDialog) {
     AlertDialog(
         onDismissRequest = { showDialog = false },
         title = { Text("Select $label") },
@@ -224,4 +224,5 @@ private fun PickerField(
             }
         }
     )
+
 }
