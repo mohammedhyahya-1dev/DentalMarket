@@ -56,6 +56,24 @@ class AuthViewModel : ViewModel() {
             _isLoading.value = false
         }
     }
+    fun logInOrSignUp(email: String, password: String, onSuccess: () -> Unit) {
+        if (email.isBlank() || password.isBlank()) {
+            _errorMessage.value = "Please fill in all fields"
+            return
+        }
+        if (password.length < 6) {
+            _errorMessage.value = "Password must be at least 6 characters"
+            return
+        }
+        viewModelScope.launch {
+            _isLoading.value = true
+            _errorMessage.value = null
+            repository.logInOrSignUp(email, password)
+                .onSuccess { onSuccess() }
+                .onFailure { _errorMessage.value = it.message ?: "Sign in failed" }
+            _isLoading.value = false
+        }
+    }
 
     fun signInWithGoogle(idToken: String, onSuccess: () -> Unit) {
         viewModelScope.launch {
