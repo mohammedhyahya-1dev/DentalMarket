@@ -5,6 +5,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.auth.FirebaseAuthUserCollisionException
 
 class AuthRepository {
 
@@ -60,9 +61,11 @@ class AuthRepository {
             auth.signInWithEmailAndPassword(email, password).awaitResult()
             Result.success(Unit)
         } catch (e: FirebaseAuthInvalidCredentialsException) {
-            // No account exists for this email yet \u2014 create one instead of
-            // showing an error. "name" is left blank; CompleteProfileScreen
-            // fills in the real name right after this.
+            // Firebase's email enumeration protection means this same error
+            // fires for both "no account yet" and "wrong password" — it won't
+            // tell us which. We find out by attempting to create an account:
+            // if that specifically fails because the email is taken, we now
+            // know for certain the account exists and the password was wrong.
             try {
                 val authResult = auth.createUserWithEmailAndPassword(email, password).awaitResult()
                 val uid = authResult.user?.uid
@@ -73,6 +76,8 @@ class AuthRepository {
                 authResult.user?.sendEmailVerification()?.awaitResult()
 
                 Result.success(Unit)
+            } catch (collisionError: FirebaseAuthUserCollisionException) {
+                Result.failure(Exception("Incorrect password. Please try again."))
             } catch (signUpError: Exception) {
                 Result.failure(signUpError)
             }
