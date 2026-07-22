@@ -56,6 +56,7 @@ class AuthRepository {
             Result.failure(e)
         }
     }
+
     suspend fun logInOrSignUp(email: String, password: String): Result<Unit> {
         return try {
             auth.signInWithEmailAndPassword(email, password).awaitResult()
@@ -72,9 +73,11 @@ class AuthRepository {
                 // reach this branch, so their older, weaker passwords still work.
                 if (!isPasswordStrong(password)) {
                     newUser.delete().awaitResult()
-                    Result.failure(Exception(
-                        "Please choose a stronger password (8+ characters, with an uppercase letter, a number, and a special character)."
-                    ))
+                    Result.failure(
+                        Exception(
+                            "Please choose a stronger password (8+ characters, with an uppercase letter, a number, and a special character)."
+                        )
+                    )
                 } else {
                     val user = DentalUser(uid = newUser.uid, name = "", email = email)
                     firestore.collection("users").document(newUser.uid).set(user).awaitResult()
@@ -109,7 +112,11 @@ class AuthRepository {
             // same as email/password sign-up does. Skip it if they've signed in before.
             val existingDoc = firestore.collection("users").document(user.uid).get().awaitResult()
             if (!existingDoc.exists()) {
-                val newUser = DentalUser(uid = user.uid, name = user.displayName ?: "", email = user.email ?: "")
+                val newUser = DentalUser(
+                    uid = user.uid,
+                    name = user.displayName ?: "",
+                    email = user.email ?: ""
+                )
                 firestore.collection("users").document(user.uid).set(newUser).awaitResult()
             }
 
@@ -181,13 +188,33 @@ class AuthRepository {
 
     suspend fun sendPasswordReset(email: String): Result<Unit> {
         return try {
-            auth.sendPasswordResetEmail(email).awaitResult()
+            val settings = com.google.firebase.auth.ActionCodeSettings.newBuilder()
+                .setUrl("https://dentalmarket-abdf6.firebaseapp.com/resetPassword")
+                .setHandleCodeInApp(true)
+                .setAndroidPackageName("com.dentalmarket.app", true, null)
+                .build()
+            auth.sendPasswordResetEmail(email, settings).awaitResult()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
-    fun signOut() {
-        auth.signOut()
+
+    suspend fun verifyPasswordResetCode(code: String): Result<String> {
+        return try {
+            val email = auth.verifyPasswordResetCode(code).awaitResult()
+            Result.success(email)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun confirmPasswordReset(code: String, newPassword: String): Result<Unit> {
+        return try {
+            auth.confirmPasswordReset(code, newPassword).awaitResult()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 }
