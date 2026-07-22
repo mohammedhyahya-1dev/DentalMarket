@@ -95,6 +95,20 @@ class AuthViewModel : ViewModel() {
             onResult(result.getOrNull()?.profileComplete ?: false)
         }
     }
+    fun sendPasswordReset(email: String, onSuccess: () -> Unit) {
+        if (email.isBlank()) {
+            _errorMessage.value = "Please enter your email"
+            return
+        }
+        viewModelScope.launch {
+            _isLoading.value = true
+            _errorMessage.value = null
+            repository.sendPasswordReset(email)
+                .onSuccess { onSuccess() }
+                .onFailure { _errorMessage.value = it.message ?: "Failed to send reset email" }
+            _isLoading.value = false
+        }
+    }
     fun signOut() {
         repository.signOut()
     }
