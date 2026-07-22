@@ -179,6 +179,14 @@ class AuthRepository {
         }
     }
 
+    suspend fun sendPasswordReset(email: String): Result<Unit> {
+        return try {
+            auth.sendPasswordResetEmail(email).awaitResult()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
     fun signOut() {
         auth.signOut()
     }
