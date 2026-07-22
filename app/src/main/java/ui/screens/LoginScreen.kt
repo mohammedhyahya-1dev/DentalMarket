@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
@@ -21,6 +22,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -52,6 +54,9 @@ fun LoginScreen(
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var showForgotPasswordDialog by remember { mutableStateOf(false) }
+    var resetEmail by remember { mutableStateOf("") }
+    var resetEmailSent by remember { mutableStateOf(false) }
 
     val isLoading by authViewModel.isLoading.collectAsState()
     val errorMessage by authViewModel.errorMessage.collectAsState()
@@ -158,9 +163,17 @@ fun LoginScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
-        if (password.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(10.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = {
+                resetEmail = email
+                resetEmailSent = false
+                showForgotPasswordDialog = true
+            }) {
+                Text("Forgot password?")
+            }
+        }
 
+        if (password.isNotEmpty()) {
             Row(modifier = Modifier.fillMaxWidth().height(4.dp)) {
                 repeat(3) { index ->
                     val segmentsFilled = when (strengthLabel) {
@@ -210,6 +223,57 @@ fun LoginScreen(
             } else {
                 Text("Continue")
             }
+        }
+
+        if (showForgotPasswordDialog) {
+            AlertDialog(
+                onDismissRequest = { showForgotPasswordDialog = false },
+                title = { Text("Reset Password") },
+                text = {
+                    if (resetEmailSent) {
+                        Text("If an account exists for that email, a reset link has been sent. Check your inbox.")
+                    } else {
+                        Column {
+                            Text(
+                                "Enter your email and we'll send you a link to reset your password.",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            OutlinedTextField(
+                                value = resetEmail,
+                                onValueChange = { resetEmail = it },
+                                label = { Text("Email") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    if (resetEmailSent) {
+                        TextButton(onClick = { showForgotPasswordDialog = false }) {
+                            Text("Done")
+                        }
+                    } else {
+                        TextButton(
+                            onClick = {
+                                authViewModel.sendPasswordReset(resetEmail) {
+                                    resetEmailSent = true
+                                }
+                            },
+                            enabled = !isLoading
+                        ) {
+                            Text("Send Reset Link")
+                        }
+                    }
+                },
+                dismissButton = {
+                    if (!resetEmailSent) {
+                        TextButton(onClick = { showForgotPasswordDialog = false }) {
+                            Text("Cancel")
+                        }
+                    }
+                }
+            )
         }
     }
 }
