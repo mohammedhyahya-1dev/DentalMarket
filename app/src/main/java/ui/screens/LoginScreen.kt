@@ -1,6 +1,8 @@
 package com.dentalmarket.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +23,11 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -46,6 +53,8 @@ import com.dentalmarket.app.viewmodel.AuthViewModel
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import kotlinx.coroutines.launch
+import androidx.compose.ui.text.input.VisualTransformation
+
 
 @Composable
 fun LoginScreen(
@@ -54,6 +63,7 @@ fun LoginScreen(
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
     var showForgotPasswordDialog by remember { mutableStateOf(false) }
     var resetEmail by remember { mutableStateOf("") }
     var resetEmailSent by remember { mutableStateOf(false) }
@@ -152,6 +162,7 @@ fun LoginScreen(
             value = email,
             onValueChange = { email = it },
             label = { Text("Email") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(modifier = Modifier.height(12.dp))
@@ -159,7 +170,15 @@ fun LoginScreen(
             value = password,
             onValueChange = { password = it },
             label = { Text("Password") },
-            visualTransformation = PasswordVisualTransformation(),
+            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            trailingIcon = {
+                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                    Icon(
+                        imageVector = if (passwordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                        contentDescription = if (passwordVisible) "Hide password" else "Show password"
+                    )
+                }
+            },
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -243,6 +262,7 @@ fun LoginScreen(
                                 value = resetEmail,
                                 onValueChange = { resetEmail = it },
                                 label = { Text("Email") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }

@@ -186,6 +186,10 @@ class AuthRepository {
         }
     }
 
+    fun signOut() {
+        auth.signOut()
+    }
+
     suspend fun sendPasswordReset(email: String): Result<Unit> {
         return try {
             val settings = com.google.firebase.auth.ActionCodeSettings.newBuilder()

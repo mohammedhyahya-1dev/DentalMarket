@@ -31,7 +31,7 @@
                 <data
                     android:scheme="https"
                     android:host="dentalmarket-abdf6.firebaseapp.com"
-                    android:pathPrefix="/resetPassword" />
+                    android:pathPrefix="/__/auth/action" />
             </intent-filter>
         </activity>
     </application>

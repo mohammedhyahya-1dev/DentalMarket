@@ -109,6 +109,25 @@ class AuthViewModel : ViewModel() {
             _isLoading.value = false
         }
     }
+
+    fun verifyResetCode(code: String, onResult: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            repository.verifyPasswordResetCode(code)
+                .onSuccess { verifiedEmail -> onResult(true, verifiedEmail) }
+                .onFailure { onResult(false, null) }
+        }
+    }
+
+    fun confirmPasswordReset(code: String, newPassword: String, onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _errorMessage.value = null
+            repository.confirmPasswordReset(code, newPassword)
+                .onSuccess { onSuccess() }
+                .onFailure { _errorMessage.value = it.message ?: "Failed to reset password" }
+            _isLoading.value = false
+        }
+    }
     fun signOut() {
         repository.signOut()
     }
