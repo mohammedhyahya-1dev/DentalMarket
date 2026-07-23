@@ -6,6 +6,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
+import com.google.firebase.firestore.SetOptions
 
 class AuthRepository {
 
@@ -147,8 +148,11 @@ class AuthRepository {
     ): Result<Unit> {
         return try {
             val uid = auth.currentUser?.uid ?: throw Exception("Not signed in")
+            val email = auth.currentUser?.email ?: ""
             val displayName = "$title $firstName $lastName".trim()
             val updates = mapOf(
+                "uid" to uid,
+                "email" to email,
                 "title" to title,
                 "firstName" to firstName,
                 "lastName" to lastName,
@@ -159,7 +163,9 @@ class AuthRepository {
                 "name" to displayName,
                 "profileComplete" to true
             )
-            firestore.collection("users").document(uid).update(updates).awaitResult()
+            firestore.collection("users").document(uid)
+                .set(updates, SetOptions.merge())
+                .awaitResult()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
