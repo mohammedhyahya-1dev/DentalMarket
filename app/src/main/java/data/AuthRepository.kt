@@ -122,6 +122,8 @@ class AuthRepository {
             }
 
             Result.success(Unit)
+        } catch (e: FirebaseAuthUserCollisionException) {
+            Result.failure(Exception("An account already exists with this email. Please log in with your email and password instead."))
         } catch (e: Exception) {
             Result.failure(e)
         }
