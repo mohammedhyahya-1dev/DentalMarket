@@ -39,7 +39,14 @@ import com.dentalmarket.app.ui.theme.DentalMarketTheme
 import com.dentalmarket.app.viewmodel.AuthViewModel
 import com.dentalmarket.app.viewmodel.CartViewModel
 import com.dentalmarket.app.viewmodel.InquiryViewModel
-
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.compose.ui.platform.LocalContext
+import com.dentalmarket.app.ui.screens.NotificationPermissionScreen
 class MainActivity : ComponentActivity() {
 
     // Holds whichever link opened (or re-opened) the app, if any. Compose
@@ -86,9 +93,14 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
 
     NavHost(navController = navController, startDestination = startDestination) {
         composable("authGate") {
+            val context = LocalContext.current
             LaunchedEffect(Unit) {
                 authViewModel.checkProfileComplete { complete ->
-                    val destination = if (complete) "marketplace" else "completeProfile"
+                    val destination = when {
+                        !complete -> "completeProfile"
+                        shouldShowNotificationPrompt(context) -> "notificationPermission"
+                        else -> "marketplace"
+                    }
                     navController.navigate(destination) {
                         popUpTo("authGate") { inclusive = true }
                     }
@@ -124,10 +136,12 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
             )
         }
         composable("completeProfile") {
+            val context = LocalContext.current
             CompleteProfileScreen(
                 authViewModel = authViewModel,
                 onComplete = {
-                    navController.navigate("marketplace") {
+                    val destination = if (shouldShowNotificationPrompt(context)) "notificationPermission" else "marketplace"
+                    navController.navigate(destination) {
                         popUpTo("completeProfile") { inclusive = true }
                     }
                 },
@@ -135,6 +149,35 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
                     authViewModel.signOut()
                     navController.navigate("login") {
                         popUpTo(0) { inclusive = true }
+                    }
+                }
+            )
+        }
+        composable("notificationPermission") {
+            val context = LocalContext.current
+            val permissionLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.RequestPermission()
+            ) {
+                markNotificationPromptShown(context)
+                navController.navigate("marketplace") {
+                    popUpTo("notificationPermission") { inclusive = true }
+                }
+            }
+            NotificationPermissionScreen(
+                onAllow = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        markNotificationPromptShown(context)
+                        navController.navigate("marketplace") {
+                            popUpTo("notificationPermission") { inclusive = true }
+                        }
+                    }
+                },
+                onSkip = {
+                    markNotificationPromptShown(context)
+                    navController.navigate("marketplace") {
+                        popUpTo("notificationPermission") { inclusive = true }
                     }
                 }
             )
@@ -229,4 +272,20 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
             )
         }
     }
+}
+
+private fun shouldShowNotificationPrompt(context: android.content.Context): Boolean {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val granted = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
+        if (granted) return false
+    }
+    val prefs = context.getSharedPreferences("dentalmarket_prefs", android.content.Context.MODE_PRIVATE)
+    return !prefs.getBoolean("notification_prompt_shown", false)
+}
+
+private fun markNotificationPromptShown(context: android.content.Context) {
+    val prefs = context.getSharedPreferences("dentalmarket_prefs", android.content.Context.MODE_PRIVATE)
+    prefs.edit().putBoolean("notification_prompt_shown", true).apply()
 }
