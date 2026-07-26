@@ -10,5 +10,6 @@ data class Listing(
     val price: Double = 0.0,
     val description: String = "",
     val emoji: String = "🦷",
-    val status: String = "AVAILABLE"
+    val status: String = "AVAILABLE",
+    val specifics: Map<String, String> = emptyMap()
 )

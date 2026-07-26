@@ -11,6 +11,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dentalmarket.app.model.Condition
 import com.dentalmarket.app.model.DeviceCategory
 import com.dentalmarket.app.viewmodel.ListingViewModel
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import com.dentalmarket.app.viewmodel.SpecRow
+import androidx.compose.ui.Alignment
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -113,12 +119,37 @@ fun SellScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
-        OutlinedTextField(
-            value = viewModel.description.value,
-            onValueChange = { viewModel.description.value = it },
-            label = { Text("Description") },
+        Text("Specifications (optional)", style = MaterialTheme.typography.titleMedium)
+
+        viewModel.specifics.forEach { row ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = row.key.value,
+                    onValueChange = { row.key.value = it },
+                    label = { Text("e.g. Brand") },
+                    modifier = Modifier.weight(1f)
+                )
+                OutlinedTextField(
+                    value = row.value.value,
+                    onValueChange = { row.value.value = it },
+                    label = { Text("e.g. Sirona") },
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = { viewModel.removeSpecRow(row) }) {
+                    Icon(Icons.Filled.Close, contentDescription = "Remove")
+                }
+            }
+        }
+
+        OutlinedButton(
+            onClick = { viewModel.addSpecRow() },
             modifier = Modifier.fillMaxWidth()
-        )
+        ) {
+            Text("+ Add Specification")
+        }
 
         OutlinedTextField(
             value = viewModel.emoji.value,

@@ -1,5 +1,6 @@
 package com.dentalmarket.app.viewmodel
 
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -8,6 +9,11 @@ import com.dentalmarket.app.data.ListingRepository
 import com.dentalmarket.app.model.Listing
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
+
+data class SpecRow(
+    var key: androidx.compose.runtime.MutableState<String>,
+    var value: androidx.compose.runtime.MutableState<String>
+)
 
 class ListingViewModel : ViewModel() {
     private val repository = ListingRepository()
@@ -19,6 +25,19 @@ class ListingViewModel : ViewModel() {
     var price = mutableStateOf("")
     var description = mutableStateOf("")
     var emoji = mutableStateOf("🦷")
+
+    // Dynamic key/value spec rows the seller builds (e.g. "Brand" -> "Sirona").
+    // Kept as a mutable list of individually-observable rows so typing in one
+    // field doesn't force the whole list to redraw.
+    var specifics = mutableStateListOf<SpecRow>()
+
+    fun addSpecRow() {
+        specifics.add(SpecRow(mutableStateOf(""), mutableStateOf("")))
+    }
+
+    fun removeSpecRow(row: SpecRow) {
+        specifics.remove(row)
+    }
 
     var isLoading = mutableStateOf(false)
     var errorMessage = mutableStateOf<String?>(null)
@@ -48,6 +67,10 @@ class ListingViewModel : ViewModel() {
                     editingSellerId = listing.sellerId
                     editingSellerName = listing.sellerName
                     editingStatus = listing.status
+                    specifics.clear()
+                    listing.specifics.forEach { (k, v) ->
+                        specifics.add(SpecRow(mutableStateOf(k), mutableStateOf(v)))
+                    }
                 }
             }
             result.onFailure { errorMessage.value = it.message }
@@ -82,7 +105,8 @@ class ListingViewModel : ViewModel() {
                     price = priceValue,
                     description = description.value,
                     emoji = emoji.value,
-                    status = editingStatus
+                    status = editingStatus,
+                    specifics = specifics.associate { it.key.value.trim() to it.value.value.trim() }.filterKeys { it.isNotBlank() }
                 )
                 val result = repository.updateListing(editingId, listing)
                 isLoading.value = false
@@ -100,7 +124,8 @@ class ListingViewModel : ViewModel() {
                     condition = condition.value,
                     price = priceValue,
                     description = description.value,
-                    emoji = emoji.value
+                    emoji = emoji.value,
+                    specifics = specifics.associate { it.key.value.trim() to it.value.value.trim() }.filterKeys { it.isNotBlank() }
                 )
                 val result = repository.addListing(listing)
                 isLoading.value = false

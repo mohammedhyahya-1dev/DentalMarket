@@ -118,7 +118,38 @@ fun ProductDetailScreen(
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(currentListing.description, style = MaterialTheme.typography.bodyLarge)
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
+
+            if (currentListing.specifics.isNotEmpty()) {
+                Text("Item Specifics", style = MaterialTheme.typography.titleMedium)
+                Spacer(modifier = Modifier.height(8.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(BoneWhite, shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                        .padding(12.dp)
+                ) {
+                    currentListing.specifics.entries.forEachIndexed { index, (key, value) ->
+                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                            Text(
+                                key,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                value,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        if (index < currentListing.specifics.size - 1) {
+                            androidx.compose.material3.HorizontalDivider()
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+            }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Quantity", style = MaterialTheme.typography.titleMedium)
