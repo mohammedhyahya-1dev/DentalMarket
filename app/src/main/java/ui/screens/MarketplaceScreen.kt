@@ -5,14 +5,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,8 +17,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dentalmarket.app.data.AuthRepository
+import com.dentalmarket.app.ui.components.BottomNavBar
+import com.dentalmarket.app.ui.components.BottomNavTab
 import com.dentalmarket.app.ui.components.ProductCard
-import com.dentalmarket.app.ui.theme.WarmAmber
 import com.dentalmarket.app.viewmodel.CartViewModel
 import com.dentalmarket.app.viewmodel.MarketplaceViewModel
 
@@ -36,6 +34,8 @@ fun MarketplaceScreen(
     onMyOrdersClick: () -> Unit,
     onAdminOrdersClick: () -> Unit,
     onMyListingsClick: () -> Unit,
+    onCategoriesClick: () -> Unit,
+    preselectedCategory: String? = null,
     marketplaceViewModel: MarketplaceViewModel = viewModel()
 ) {
     val cartItems by cartViewModel.cartItems.collectAsState()
@@ -49,7 +49,7 @@ fun MarketplaceScreen(
     val isAdmin = authRepository.isAdmin
 
     var searchQuery by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf<String?>(null) }
+    var selectedCategory by remember { mutableStateOf(preselectedCategory) }
 
     val categories = remember(listings) {
         listings.map { it.category }.filter { it.isNotBlank() }.distinct().sorted()
@@ -76,28 +76,21 @@ fun MarketplaceScreen(
                             Icon(Icons.Filled.Settings, contentDescription = "Admin orders")
                         }
                     }
-                    IconButton(onClick = onMyListingsClick) {
+                    IconButton(onClick = onMyListingsClick, modifier = Modifier.padding(end = 8.dp)) {
                         Icon(Icons.Filled.Edit, contentDescription = "My listings")
                     }
-                    IconButton(onClick = onMyOrdersClick) {
-                        Icon(Icons.Filled.List, contentDescription = "My orders")
-                    }
-                    BadgedBox(
-                        badge = {
-                            if (itemCount > 0) {
-                                Badge(containerColor = WarmAmber) { Text("$itemCount") }
-                            }
-                        },
-                        modifier = Modifier.padding(end = 4.dp)
-                    ) {
-                        IconButton(onClick = onCartClick) {
-                            Icon(Icons.Filled.ShoppingCart, contentDescription = "Cart")
-                        }
-                    }
-                    IconButton(onClick = onProfileClick, modifier = Modifier.padding(end = 8.dp)) {
-                        Icon(Icons.Filled.AccountCircle, contentDescription = "My profile")
-                    }
                 }
+            )
+        },
+        bottomBar = {
+            BottomNavBar(
+                selectedTab = BottomNavTab.HOME,
+                onHomeClick = {},
+                onCategoriesClick = onCategoriesClick,
+                onCartClick = onCartClick,
+                onMyOrdersClick = onMyOrdersClick,
+                onProfileClick = onProfileClick,
+                cartItemCount = itemCount
             )
         },
         floatingActionButton = {

@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dentalmarket.app.model.Condition
+import com.dentalmarket.app.model.DeviceCategory
 import com.dentalmarket.app.viewmodel.ListingViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -19,6 +20,7 @@ fun SellScreen(
     viewModel: ListingViewModel = viewModel()
 ) {
     var conditionExpanded by remember { mutableStateOf(false) }
+    var categoryExpanded by remember { mutableStateOf(false) }
     val isEditMode = listingId != null
 
     LaunchedEffect(listingId) {
@@ -50,12 +52,32 @@ fun SellScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
-        OutlinedTextField(
-            value = viewModel.category.value,
-            onValueChange = { viewModel.category.value = it },
-            label = { Text("Category (e.g. Sterilizer)") },
-            modifier = Modifier.fillMaxWidth()
-        )
+        ExposedDropdownMenuBox(
+            expanded = categoryExpanded,
+            onExpandedChange = { categoryExpanded = it }
+        ) {
+            OutlinedTextField(
+                value = viewModel.category.value,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Category") },
+                modifier = Modifier.fillMaxWidth().menuAnchor()
+            )
+            ExposedDropdownMenu(
+                expanded = categoryExpanded,
+                onDismissRequest = { categoryExpanded = false }
+            ) {
+                DeviceCategory.entries.forEach { cat ->
+                    DropdownMenuItem(
+                        text = { Text("${cat.emoji} ${cat.label}") },
+                        onClick = {
+                            viewModel.category.value = cat.label
+                            categoryExpanded = false
+                        }
+                    )
+                }
+            }
+        }
 
         ExposedDropdownMenuBox(
             expanded = conditionExpanded,

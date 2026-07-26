@@ -47,10 +47,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.compose.ui.platform.LocalContext
 import com.dentalmarket.app.ui.screens.NotificationPermissionScreen
+import com.dentalmarket.app.ui.screens.CategoriesScreen
+
 class MainActivity : ComponentActivity() {
 
-    // Holds whichever link opened (or re-opened) the app, if any. Compose
-    // reads this below and reacts whenever it changes.
     private var pendingDeepLinkUri by mutableStateOf<Uri?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -65,7 +65,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // Fires if the app is already open in the background when the link is tapped.
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -82,8 +81,6 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
 
     val startDestination = if (authViewModel.isLoggedIn) "authGate" else "login"
 
-    // Whenever a reset-password link comes in, pull Firebase's code out of it
-    // and jump straight to the reset screen, skipping normal login entirely.
     LaunchedEffect(deepLinkUri) {
         val code = deepLinkUri?.getQueryParameter("oobCode")
         if (!code.isNullOrBlank()) {
@@ -182,7 +179,11 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
                 }
             )
         }
-        composable("marketplace") {
+        composable(
+            "marketplace?category={category}",
+            arguments = listOf(navArgument("category") { type = NavType.StringType; nullable = true; defaultValue = null })
+        ) { backStackEntry ->
+            val preselectedCategory = backStackEntry.arguments?.getString("category")
             MarketplaceScreen(
                 cartViewModel = cartViewModel,
                 onProductClick = { id -> navController.navigate("product/$id") },
@@ -191,7 +192,26 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
                 onSellClick = { navController.navigate("sell") },
                 onMyOrdersClick = { navController.navigate("myOrders") },
                 onAdminOrdersClick = { navController.navigate("adminOrders") },
-                onMyListingsClick = { navController.navigate("myListings") }
+                onMyListingsClick = { navController.navigate("myListings") },
+                onCategoriesClick = { navController.navigate("categories") },
+                preselectedCategory = preselectedCategory
+            )
+        }
+        composable("categories") {
+            CategoriesScreen(
+                onCategoryClick = { category ->
+                    navController.navigate("marketplace?category=${category.label}") {
+                        popUpTo("marketplace") { inclusive = true }
+                    }
+                },
+                onHomeClick = {
+                    navController.navigate("marketplace") {
+                        popUpTo("marketplace") { inclusive = true }
+                    }
+                },
+                onCartClick = { navController.navigate("cart") },
+                onMyOrdersClick = { navController.navigate("myOrders") },
+                onProfileClick = { navController.navigate("profile") }
             )
         }
         composable("profile") {
