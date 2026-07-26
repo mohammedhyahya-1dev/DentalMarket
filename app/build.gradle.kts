@@ -13,6 +13,8 @@ android {
     defaultConfig {
         applicationId = "com.dentalmarket.app"
         minSdk = 24
+        minSdk = 24
+        multiDexEnabled = true
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"
