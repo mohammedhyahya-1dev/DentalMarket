@@ -22,6 +22,7 @@ import com.dentalmarket.app.ui.components.BottomNavTab
 import com.dentalmarket.app.ui.components.ProductCard
 import com.dentalmarket.app.viewmodel.CartViewModel
 import com.dentalmarket.app.viewmodel.MarketplaceViewModel
+import com.dentalmarket.app.viewmodel.WatchlistViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,11 +37,14 @@ fun MarketplaceScreen(
     onMyListingsClick: () -> Unit,
     onCategoriesClick: () -> Unit,
     preselectedCategory: String? = null,
-    marketplaceViewModel: MarketplaceViewModel = viewModel()
+    marketplaceViewModel: MarketplaceViewModel = viewModel(),
+    watchlistViewModel: WatchlistViewModel = viewModel()
 ) {
     val cartItems by cartViewModel.cartItems.collectAsState()
+    val watchedIds by watchlistViewModel.watchedIds.collectAsState()
     LaunchedEffect(Unit) {
         marketplaceViewModel.loadListings()
+        watchlistViewModel.loadWatchlistOnce()
     }
     val itemCount = cartItems.sumOf { it.quantity }
     val listings = marketplaceViewModel.listings.value
@@ -165,7 +169,9 @@ fun MarketplaceScreen(
                             ProductCard(
                                 listing = listing,
                                 onClick = { onProductClick(listing.id) },
-                                onAddToCart = { cartViewModel.addToCart(listing) }
+                                onAddToCart = { cartViewModel.addToCart(listing) },
+                                isWatched = watchedIds.contains(listing.id),
+                                onToggleWatch = { watchlistViewModel.toggleWatch(listing.id) }
                             )
                         }
                     }

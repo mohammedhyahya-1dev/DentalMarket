@@ -25,6 +25,7 @@ fun ProfileScreen(
     onSignOut: () -> Unit,
     onMyQuestionsClick: () -> Unit,
     onAdminInquiriesClick: () -> Unit,
+    onWatchlistClick: () -> Unit,
     viewModel: ProfileViewModel = viewModel()
 ) {
     val profile = viewModel.profile.value
@@ -147,6 +148,17 @@ fun ProfileScreen(
                         }
                         Spacer(modifier = Modifier.height(16.dp))
                     }
+
+                    OutlinedButton(
+                        onClick = onWatchlistClick,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Filled.Info, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("My Watchlist")
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     OutlinedButton(
                         onClick = onMyQuestionsClick,

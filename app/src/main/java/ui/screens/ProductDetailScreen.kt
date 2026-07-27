@@ -46,6 +46,11 @@ import com.dentalmarket.app.ui.theme.BoneWhite
 import com.dentalmarket.app.ui.theme.WarmAmber
 import com.dentalmarket.app.viewmodel.CartViewModel
 import com.dentalmarket.app.viewmodel.InquiryViewModel
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.dentalmarket.app.viewmodel.WatchlistViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,7 +60,8 @@ fun ProductDetailScreen(
     inquiryViewModel: InquiryViewModel,
     buyerId: String,
     buyerName: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    watchlistViewModel: WatchlistViewModel = viewModel()
 ) {
     var listing by remember { mutableStateOf<Listing?>(null) }
     var quantity by remember { mutableIntStateOf(1) }
@@ -64,9 +70,13 @@ fun ProductDetailScreen(
     var showQuestionDialog by remember { mutableStateOf(false) }
     var questionText by remember { mutableStateOf("") }
 
+    val watchedIds by watchlistViewModel.watchedIds.collectAsState()
+    val isWatched = watchedIds.contains(listingId)
+
     LaunchedEffect(listingId) {
         val result = repository.getListingById(listingId)
         result.onSuccess { listing = it }
+        watchlistViewModel.loadWatchlistOnce()
     }
 
     Scaffold(
@@ -76,6 +86,15 @@ fun ProductDetailScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { watchlistViewModel.toggleWatch(listingId) }) {
+                        Icon(
+                            if (isWatched) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                            contentDescription = if (isWatched) "Remove from watchlist" else "Add to watchlist",
+                            tint = if (isWatched) WarmAmber else MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 }
             )

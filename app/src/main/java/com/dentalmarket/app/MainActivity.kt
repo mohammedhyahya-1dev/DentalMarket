@@ -48,6 +48,7 @@ import androidx.core.content.ContextCompat
 import androidx.compose.ui.platform.LocalContext
 import com.dentalmarket.app.ui.screens.NotificationPermissionScreen
 import com.dentalmarket.app.ui.screens.CategoriesScreen
+import com.dentalmarket.app.ui.screens.WatchlistScreen
 
 class MainActivity : ComponentActivity() {
 
@@ -224,7 +225,15 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
                     }
                 },
                 onMyQuestionsClick = { navController.navigate("myQuestions") },
-                onAdminInquiriesClick = { navController.navigate("adminInquiries") }
+                onAdminInquiriesClick = { navController.navigate("adminInquiries") },
+                onWatchlistClick = { navController.navigate("watchlist") }
+            )
+        }
+        composable("watchlist") {
+            WatchlistScreen(
+                cartViewModel = cartViewModel,
+                onProductClick = { id -> navController.navigate("product/$id") },
+                onBack = { navController.popBackStack() }
             )
         }
         composable("sell") {

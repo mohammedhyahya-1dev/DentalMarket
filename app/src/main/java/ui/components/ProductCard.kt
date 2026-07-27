@@ -15,10 +15,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,7 +40,9 @@ fun ProductCard(
     listing: Listing,
     onClick: () -> Unit,
     onAddToCart: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isWatched: Boolean = false,
+    onToggleWatch: (() -> Unit)? = null
 ) {
     Card(
         modifier = modifier
@@ -75,7 +80,16 @@ fun ProductCard(
                     color = WarmAmber
                 )
             }
-            Spacer(modifier = Modifier.width(8.dp))
+            if (onToggleWatch != null) {
+                IconButton(onClick = onToggleWatch) {
+                    Icon(
+                        if (isWatched) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                        contentDescription = if (isWatched) "Remove from watchlist" else "Add to watchlist",
+                        tint = if (isWatched) WarmAmber else MaterialTheme.colorScheme.outline
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(4.dp))
             FilledIconButton(onClick = onAddToCart) {
                 Icon(Icons.Filled.Add, contentDescription = "Add to cart")
             }
