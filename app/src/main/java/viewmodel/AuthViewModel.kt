@@ -23,6 +23,9 @@ class AuthViewModel : ViewModel() {
     val currentUserId: String?
         get() = repository.currentUserId
 
+    val isAdmin: Boolean
+        get() = repository.isAdmin
+
     fun signUp(name: String, email: String, password: String, onSuccess: () -> Unit) {
         if (name.isBlank() || email.isBlank() || password.isBlank()) {
             _errorMessage.value = "Please fill in all fields"

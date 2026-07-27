@@ -13,7 +13,7 @@ class AuthRepository {
     private val auth = FirebaseAuth.getInstance()
     private val firestore = FirebaseFirestore.getInstance()
 
-    private val adminEmails = listOf("test@test.com")
+    private val adminEmails = listOf("p.mohammed.h.yahya@gmail.com")
 
     val isLoggedIn: Boolean
         get() = auth.currentUser != null

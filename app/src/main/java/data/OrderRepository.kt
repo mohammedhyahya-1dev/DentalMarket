@@ -17,6 +17,16 @@ class OrderRepository {
         }
     }
 
+    suspend fun getOrderById(orderId: String): Result<Order?> {
+        return try {
+            val doc = ordersCollection.document(orderId).get().await()
+            val order = doc.toObject(Order::class.java)?.copy(id = doc.id)
+            Result.success(order)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun getOrdersForBuyer(buyerId: String): Result<List<Order>> {
         return try {
             val snapshot = ordersCollection.whereEqualTo("buyerId", buyerId).get().await()

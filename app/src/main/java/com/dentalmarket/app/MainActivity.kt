@@ -30,6 +30,7 @@ import com.dentalmarket.app.ui.screens.LoginScreen
 import com.dentalmarket.app.ui.screens.MarketplaceScreen
 import com.dentalmarket.app.ui.screens.MyListingsScreen
 import com.dentalmarket.app.ui.screens.MyOrdersScreen
+import com.dentalmarket.app.ui.screens.OrderDetailScreen
 import com.dentalmarket.app.ui.screens.MyQuestionsScreen
 import com.dentalmarket.app.ui.screens.ProductDetailScreen
 import com.dentalmarket.app.ui.screens.ProfileScreen
@@ -273,13 +274,32 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
         }
         composable("myOrders") {
             MyOrdersScreen(
+                onBack = { navController.popBackStack() },
+                onOrderClick = { order -> navController.navigate("orderDetail/${order.id}") }
+            )
+        }
+        composable(
+            "orderDetail/{orderId}",
+            arguments = listOf(navArgument("orderId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val orderId = backStackEntry.arguments?.getString("orderId") ?: ""
+            OrderDetailScreen(
+                orderId = orderId,
                 onBack = { navController.popBackStack() }
             )
         }
         composable("adminOrders") {
-            AdminOrdersScreen(
-                onBack = { navController.popBackStack() }
-            )
+            // The Profile/Marketplace links only show for admins, but that's
+            // just UI — guard the destination itself so this screen (and the
+            // all-orders Firestore query behind it) can't be reached by
+            // navigating here directly, e.g. via a restored back stack.
+            if (authViewModel.isAdmin) {
+                AdminOrdersScreen(
+                    onBack = { navController.popBackStack() }
+                )
+            } else {
+                LaunchedEffect(Unit) { navController.popBackStack() }
+            }
         }
         composable("myListings") {
             MyListingsScreen(
@@ -295,10 +315,14 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
             )
         }
         composable("adminInquiries") {
-            AdminInquiriesScreen(
-                inquiryViewModel = inquiryViewModel,
-                onBack = { navController.popBackStack() }
-            )
+            if (authViewModel.isAdmin) {
+                AdminInquiriesScreen(
+                    inquiryViewModel = inquiryViewModel,
+                    onBack = { navController.popBackStack() }
+                )
+            } else {
+                LaunchedEffect(Unit) { navController.popBackStack() }
+            }
         }
     }
 }

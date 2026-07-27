@@ -16,6 +16,19 @@ class OrderViewModel : ViewModel() {
     var isLoading = mutableStateOf(false)
     var errorMessage = mutableStateOf<String?>(null)
 
+    var selectedOrder = mutableStateOf<Order?>(null)
+    var isLoadingOrder = mutableStateOf(false)
+
+    fun loadOrder(orderId: String) {
+        isLoadingOrder.value = true
+        viewModelScope.launch {
+            val result = repository.getOrderById(orderId)
+            isLoadingOrder.value = false
+            result.onSuccess { selectedOrder.value = it }
+            result.onFailure { errorMessage.value = it.message }
+        }
+    }
+
     fun loadMyOrders() {
         val buyerId = authRepository.currentUserId ?: return
         isLoading.value = true

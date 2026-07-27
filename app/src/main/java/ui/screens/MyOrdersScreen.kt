@@ -1,6 +1,7 @@
 package com.dentalmarket.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,6 +21,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dentalmarket.app.model.Order
 import com.dentalmarket.app.model.OrderStatus
 import com.dentalmarket.app.model.Rating
+import com.dentalmarket.app.ui.components.OrderStatusTracker
 import com.dentalmarket.app.ui.theme.WarmAmber
 import com.dentalmarket.app.viewmodel.OrderViewModel
 import com.dentalmarket.app.viewmodel.RatingViewModel
@@ -30,6 +32,7 @@ private val RATABLE_STATUSES = setOf("DELIVERED", "PAID_TO_SELLER")
 @Composable
 fun MyOrdersScreen(
     onBack: () -> Unit,
+    onOrderClick: (Order) -> Unit = {},
     viewModel: OrderViewModel = viewModel(),
     ratingViewModel: RatingViewModel = viewModel()
 ) {
@@ -76,7 +79,8 @@ fun MyOrdersScreen(
                         OrderCard(
                             order = order,
                             canRate = order.status in RATABLE_STATUSES && order.id !in ratedOrderIds,
-                            onRateClick = { orderToRate = order }
+                            onRateClick = { orderToRate = order },
+                            onClick = { onOrderClick(order) }
                         )
                     }
                 }
@@ -112,8 +116,16 @@ fun MyOrdersScreen(
 }
 
 @Composable
-fun OrderCard(order: Order, canRate: Boolean = false, onRateClick: (() -> Unit)? = null) {
-    Card(shape = RoundedCornerShape(16.dp)) {
+fun OrderCard(
+    order: Order,
+    canRate: Boolean = false,
+    onRateClick: (() -> Unit)? = null,
+    onClick: (() -> Unit)? = null
+) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        modifier = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
+    ) {
         Column(modifier = Modifier.padding(14.dp).fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(order.listingEmoji, fontSize = 32.sp)
@@ -124,10 +136,10 @@ fun OrderCard(order: Order, canRate: Boolean = false, onRateClick: (() -> Unit)?
                         "Qty: ${order.quantity} • $" + "%.2f".format(order.price * order.quantity),
                         style = MaterialTheme.typography.bodyMedium
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    StatusBadge(order.status)
                 }
             }
+            Spacer(modifier = Modifier.height(10.dp))
+            OrderStatusTracker(order.status, compact = true)
             if (canRate && onRateClick != null) {
                 Spacer(modifier = Modifier.height(10.dp))
                 OutlinedButton(onClick = onRateClick, modifier = Modifier.fillMaxWidth()) {
