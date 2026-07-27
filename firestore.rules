@@ -32,7 +32,18 @@ service cloud.firestore {
     match /listings/{listingId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.sellerId == request.auth.uid;
-      allow update, delete: if isSignedIn() &&
+      // The owner or admin can change anything. A buyer who isn't the owner
+      // can only flip an AVAILABLE listing to SOLD (nothing else) — this is
+      // what CartViewModel.checkout() does right after placing an order, and
+      // the app has no cross-collection way to verify the buyer actually
+      // holds a matching order for this listing, so it's trusted as-is.
+      allow update: if isSignedIn() &&
+        (resource.data.sellerId == request.auth.uid ||
+         isAdmin() ||
+         (resource.data.status == 'AVAILABLE' &&
+          request.resource.data.status == 'SOLD' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])));
+      allow delete: if isSignedIn() &&
         (resource.data.sellerId == request.auth.uid || isAdmin());
     }
 
