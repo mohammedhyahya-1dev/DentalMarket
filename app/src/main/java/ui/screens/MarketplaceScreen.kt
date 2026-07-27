@@ -22,6 +22,7 @@ import com.dentalmarket.app.ui.components.BottomNavTab
 import com.dentalmarket.app.ui.components.ProductCard
 import com.dentalmarket.app.viewmodel.CartViewModel
 import com.dentalmarket.app.viewmodel.MarketplaceViewModel
+import com.dentalmarket.app.viewmodel.RatingViewModel
 import com.dentalmarket.app.viewmodel.WatchlistViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -38,10 +39,12 @@ fun MarketplaceScreen(
     onCategoriesClick: () -> Unit,
     preselectedCategory: String? = null,
     marketplaceViewModel: MarketplaceViewModel = viewModel(),
-    watchlistViewModel: WatchlistViewModel = viewModel()
+    watchlistViewModel: WatchlistViewModel = viewModel(),
+    ratingViewModel: RatingViewModel = viewModel()
 ) {
     val cartItems by cartViewModel.cartItems.collectAsState()
     val watchedIds by watchlistViewModel.watchedIds.collectAsState()
+    val sellerSummaries by ratingViewModel.sellerSummaries.collectAsState()
     LaunchedEffect(Unit) {
         marketplaceViewModel.loadListings()
         watchlistViewModel.loadWatchlistOnce()
@@ -49,6 +52,12 @@ fun MarketplaceScreen(
     val itemCount = cartItems.sumOf { it.quantity }
     val listings = marketplaceViewModel.listings.value
     val isLoading = marketplaceViewModel.isLoading.value
+
+    LaunchedEffect(listings) {
+        if (listings.isNotEmpty()) {
+            ratingViewModel.loadSellerSummaries(listings.map { it.sellerId })
+        }
+    }
     val authRepository = remember { AuthRepository() }
     val isAdmin = authRepository.isAdmin
 
@@ -171,7 +180,8 @@ fun MarketplaceScreen(
                                 onClick = { onProductClick(listing.id) },
                                 onAddToCart = { cartViewModel.addToCart(listing) },
                                 isWatched = watchedIds.contains(listing.id),
-                                onToggleWatch = { watchlistViewModel.toggleWatch(listing.id) }
+                                onToggleWatch = { watchlistViewModel.toggleWatch(listing.id) },
+                                sellerRating = sellerSummaries[listing.sellerId]
                             )
                         }
                     }

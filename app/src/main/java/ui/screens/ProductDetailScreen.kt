@@ -42,6 +42,7 @@ import com.dentalmarket.app.model.Condition
 import com.dentalmarket.app.model.Inquiry
 import com.dentalmarket.app.model.Listing
 import com.dentalmarket.app.ui.components.ConditionBadge
+import com.dentalmarket.app.ui.components.RatingBadge
 import com.dentalmarket.app.ui.theme.BoneWhite
 import com.dentalmarket.app.ui.theme.WarmAmber
 import com.dentalmarket.app.viewmodel.CartViewModel
@@ -50,6 +51,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.dentalmarket.app.viewmodel.RatingViewModel
 import com.dentalmarket.app.viewmodel.WatchlistViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -61,7 +63,8 @@ fun ProductDetailScreen(
     buyerId: String,
     buyerName: String,
     onBack: () -> Unit,
-    watchlistViewModel: WatchlistViewModel = viewModel()
+    watchlistViewModel: WatchlistViewModel = viewModel(),
+    ratingViewModel: RatingViewModel = viewModel()
 ) {
     var listing by remember { mutableStateOf<Listing?>(null) }
     var quantity by remember { mutableIntStateOf(1) }
@@ -72,11 +75,18 @@ fun ProductDetailScreen(
 
     val watchedIds by watchlistViewModel.watchedIds.collectAsState()
     val isWatched = watchedIds.contains(listingId)
+    val sellerSummaries by ratingViewModel.sellerSummaries.collectAsState()
 
     LaunchedEffect(listingId) {
         val result = repository.getListingById(listingId)
         result.onSuccess { listing = it }
         watchlistViewModel.loadWatchlistOnce()
+    }
+
+    LaunchedEffect(listing?.sellerId) {
+        listing?.sellerId?.takeIf { it.isNotBlank() }?.let {
+            ratingViewModel.loadSellerSummaries(listOf(it))
+        }
     }
 
     Scaffold(
@@ -129,6 +139,20 @@ fun ProductDetailScreen(
             ConditionBadge(Condition.valueOf(currentListing.condition))
             Spacer(modifier = Modifier.height(12.dp))
             Text(currentListing.category, style = MaterialTheme.typography.bodyMedium)
+            if (currentListing.sellerName.isNotBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Sold by ${currentListing.sellerName}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                    sellerSummaries[currentListing.sellerId]?.let { summary ->
+                        Spacer(modifier = Modifier.width(8.dp))
+                        RatingBadge(summary)
+                    }
+                }
+            }
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 "$" + "%.2f".format(currentListing.price),

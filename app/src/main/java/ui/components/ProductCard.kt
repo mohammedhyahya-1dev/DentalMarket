@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dentalmarket.app.model.Condition
 import com.dentalmarket.app.model.Listing
+import com.dentalmarket.app.model.SellerRatingSummary
 import com.dentalmarket.app.ui.theme.BoneWhite
 import com.dentalmarket.app.ui.theme.WarmAmber
 
@@ -42,7 +43,8 @@ fun ProductCard(
     onAddToCart: () -> Unit,
     modifier: Modifier = Modifier,
     isWatched: Boolean = false,
-    onToggleWatch: (() -> Unit)? = null
+    onToggleWatch: (() -> Unit)? = null,
+    sellerRating: SellerRatingSummary? = null
 ) {
     Card(
         modifier = modifier
@@ -72,7 +74,13 @@ fun ProductCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                ConditionBadge(Condition.valueOf(listing.condition))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    ConditionBadge(Condition.valueOf(listing.condition))
+                    if (sellerRating != null && sellerRating.count > 0) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        RatingBadge(sellerRating)
+                    }
+                }
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     "$" + "%.2f".format(listing.price),
