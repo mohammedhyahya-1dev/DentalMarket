@@ -37,11 +37,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.dentalmarket.app.data.AuthRepository
 import com.dentalmarket.app.data.ListingRepository
 import com.dentalmarket.app.model.Condition
 import com.dentalmarket.app.model.Inquiry
 import com.dentalmarket.app.model.Listing
 import com.dentalmarket.app.ui.components.ConditionBadge
+import com.dentalmarket.app.ui.components.GuestSignInPrompt
 import com.dentalmarket.app.ui.components.RatingBadge
 import com.dentalmarket.app.ui.theme.BoneWhite
 import com.dentalmarket.app.ui.theme.WarmAmber
@@ -63,6 +65,7 @@ fun ProductDetailScreen(
     buyerId: String,
     buyerName: String,
     onBack: () -> Unit,
+    onRequireLogin: () -> Unit,
     watchlistViewModel: WatchlistViewModel = viewModel(),
     ratingViewModel: RatingViewModel = viewModel()
 ) {
@@ -72,6 +75,13 @@ fun ProductDetailScreen(
     val repository = remember { ListingRepository() }
     var showQuestionDialog by remember { mutableStateOf(false) }
     var questionText by remember { mutableStateOf("") }
+    val authRepository = remember { AuthRepository() }
+    val isGuest = authRepository.isAnonymous
+    var showGuestPrompt by remember { mutableStateOf(false) }
+
+    fun requireLogin(action: () -> Unit) {
+        if (isGuest) showGuestPrompt = true else action()
+    }
 
     val watchedIds by watchlistViewModel.watchedIds.collectAsState()
     val isWatched = watchedIds.contains(listingId)
@@ -99,7 +109,7 @@ fun ProductDetailScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { watchlistViewModel.toggleWatch(listingId) }) {
+                    IconButton(onClick = { requireLogin { watchlistViewModel.toggleWatch(listingId) } }) {
                         Icon(
                             if (isWatched) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                             contentDescription = if (isWatched) "Remove from watchlist" else "Add to watchlist",
@@ -210,8 +220,10 @@ fun ProductDetailScreen(
 
             Button(
                 onClick = {
-                    cartViewModel.addToCart(currentListing, quantity)
-                    showAddedMessage = true
+                    requireLogin {
+                        cartViewModel.addToCart(currentListing, quantity)
+                        showAddedMessage = true
+                    }
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -221,7 +233,7 @@ fun ProductDetailScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             OutlinedButton(
-                onClick = { showQuestionDialog = true },
+                onClick = { requireLogin { showQuestionDialog = true } },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Ask a Question")
@@ -277,5 +289,15 @@ fun ProductDetailScreen(
                 )
             }
         }
+    }
+
+    if (showGuestPrompt) {
+        GuestSignInPrompt(
+            onDismiss = { showGuestPrompt = false },
+            onSignIn = {
+                showGuestPrompt = false
+                onRequireLogin()
+            }
+        )
     }
 }

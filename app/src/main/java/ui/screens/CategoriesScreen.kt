@@ -9,14 +9,20 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.dentalmarket.app.data.AuthRepository
 import com.dentalmarket.app.model.DeviceCategory
 import com.dentalmarket.app.ui.components.BottomNavBar
 import com.dentalmarket.app.ui.components.BottomNavTab
+import com.dentalmarket.app.ui.components.GuestSignInPrompt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -25,8 +31,17 @@ fun CategoriesScreen(
     onHomeClick: () -> Unit,
     onCartClick: () -> Unit,
     onMyOrdersClick: () -> Unit,
-    onProfileClick: () -> Unit
+    onProfileClick: () -> Unit,
+    onRequireLogin: () -> Unit
 ) {
+    val authRepository = remember { AuthRepository() }
+    val isGuest = authRepository.isAnonymous
+    var showGuestPrompt by remember { mutableStateOf(false) }
+
+    fun requireLogin(action: () -> Unit) {
+        if (isGuest) showGuestPrompt = true else action()
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(title = { Text("Categories", style = MaterialTheme.typography.headlineMedium) })
@@ -37,8 +52,8 @@ fun CategoriesScreen(
                 onHomeClick = onHomeClick,
                 onCategoriesClick = {},
                 onCartClick = onCartClick,
-                onMyOrdersClick = onMyOrdersClick,
-                onProfileClick = onProfileClick
+                onMyOrdersClick = { requireLogin(onMyOrdersClick) },
+                onProfileClick = { requireLogin(onProfileClick) }
             )
         }
     ) { padding ->
@@ -53,6 +68,16 @@ fun CategoriesScreen(
                 CategoryCell(category = category, onClick = { onCategoryClick(category) })
             }
         }
+    }
+
+    if (showGuestPrompt) {
+        GuestSignInPrompt(
+            onDismiss = { showGuestPrompt = false },
+            onSignIn = {
+                showGuestPrompt = false
+                onRequireLogin()
+            }
+        )
     }
 }
 

@@ -1,6 +1,7 @@
 package com.dentalmarket.app.data
 
 import com.dentalmarket.app.model.DentalUser
+import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.auth.GoogleAuthProvider
@@ -23,6 +24,9 @@ class AuthRepository {
 
     val isAdmin: Boolean
         get() = auth.currentUser?.email in adminEmails
+
+    val isAnonymous: Boolean
+        get() = auth.currentUser?.isAnonymous == true
 
     // Reflects Firebase's on-device cached copy. Call reloadUser() first if
     // you need the freshest value (e.g. right after the user might have
@@ -58,7 +62,56 @@ class AuthRepository {
         }
     }
 
+    suspend fun signInAnonymously(): Result<Unit> {
+        return try {
+            auth.signInAnonymously().awaitResult()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun logInOrSignUp(email: String, password: String): Result<Unit> {
+        val guestUser = auth.currentUser?.takeIf { it.isAnonymous }
+        if (guestUser != null) {
+            return try {
+                val credential = EmailAuthProvider.getCredential(email, password)
+                val authResult = guestUser.linkWithCredential(credential).awaitResult()
+                val linkedUser = authResult.user
+                    ?: throw Exception("Account created but no user ID was returned")
+
+                // Same new-account policy as a normal signup: only now do we
+                // enforce strong passwords, since this really is a brand-new
+                // email (linking would have thrown a collision otherwise).
+                if (!isPasswordStrong(password)) {
+                    linkedUser.delete().awaitResult()
+                    Result.failure(
+                        Exception(
+                            "Please choose a stronger password (8+ characters, with an uppercase letter, a number, and a special character)."
+                        )
+                    )
+                } else {
+                    val user = DentalUser(uid = linkedUser.uid, name = "", email = email)
+                    firestore.collection("users").document(linkedUser.uid).set(user).awaitResult()
+                    linkedUser.sendEmailVerification().awaitResult()
+                    Result.success(Unit)
+                }
+            } catch (collisionError: FirebaseAuthUserCollisionException) {
+                // This email already belongs to a real account — sign into
+                // that one instead. The guest's anonymous UID is abandoned,
+                // but guests can never have created any data under it (every
+                // restricted action is gated in the UI), so nothing is lost.
+                try {
+                    auth.signInWithEmailAndPassword(email, password).awaitResult()
+                    Result.success(Unit)
+                } catch (signInError: Exception) {
+                    Result.failure(Exception("Incorrect password. Please try again."))
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+
         return try {
             auth.signInWithEmailAndPassword(email, password).awaitResult()
             Result.success(Unit)
@@ -104,9 +157,15 @@ class AuthRepository {
     }
 
     suspend fun signInWithGoogleIdToken(idToken: String): Result<Unit> {
+        val firebaseCredential = GoogleAuthProvider.getCredential(idToken, null)
+        val guestUser = auth.currentUser?.takeIf { it.isAnonymous }
+
         return try {
-            val firebaseCredential = GoogleAuthProvider.getCredential(idToken, null)
-            val authResult = auth.signInWithCredential(firebaseCredential).awaitResult()
+            val authResult = if (guestUser != null) {
+                guestUser.linkWithCredential(firebaseCredential).awaitResult()
+            } else {
+                auth.signInWithCredential(firebaseCredential).awaitResult()
+            }
             val user = authResult.user ?: throw Exception("Signed in but no user was returned")
 
             // First time this Google account signs in, create their profile doc —
@@ -123,7 +182,29 @@ class AuthRepository {
 
             Result.success(Unit)
         } catch (e: FirebaseAuthUserCollisionException) {
-            Result.failure(Exception("An account already exists with this email. Please log in with your email and password instead."))
+            if (guestUser != null) {
+                // This Google account already exists under a different UID —
+                // sign into that one instead. The guest's anonymous UID is
+                // abandoned, same trade-off as the email/password path.
+                try {
+                    val authResult = auth.signInWithCredential(firebaseCredential).awaitResult()
+                    val user = authResult.user ?: throw Exception("Signed in but no user was returned")
+                    val existingDoc = firestore.collection("users").document(user.uid).get().awaitResult()
+                    if (!existingDoc.exists()) {
+                        val newUser = DentalUser(
+                            uid = user.uid,
+                            name = user.displayName ?: "",
+                            email = user.email ?: ""
+                        )
+                        firestore.collection("users").document(user.uid).set(newUser).awaitResult()
+                    }
+                    Result.success(Unit)
+                } catch (signInError: Exception) {
+                    Result.failure(signInError)
+                }
+            } else {
+                Result.failure(Exception("An account already exists with this email. Please log in with your email and password instead."))
+            }
         } catch (e: Exception) {
             Result.failure(e)
         }

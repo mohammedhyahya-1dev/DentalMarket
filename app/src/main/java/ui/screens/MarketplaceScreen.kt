@@ -19,6 +19,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dentalmarket.app.data.AuthRepository
 import com.dentalmarket.app.ui.components.BottomNavBar
 import com.dentalmarket.app.ui.components.BottomNavTab
+import com.dentalmarket.app.ui.components.GuestSignInPrompt
 import com.dentalmarket.app.ui.components.ProductCard
 import com.dentalmarket.app.viewmodel.CartViewModel
 import com.dentalmarket.app.viewmodel.MarketplaceViewModel
@@ -37,6 +38,7 @@ fun MarketplaceScreen(
     onAdminOrdersClick: () -> Unit,
     onMyListingsClick: () -> Unit,
     onCategoriesClick: () -> Unit,
+    onRequireLogin: () -> Unit,
     preselectedCategory: String? = null,
     marketplaceViewModel: MarketplaceViewModel = viewModel(),
     watchlistViewModel: WatchlistViewModel = viewModel(),
@@ -60,6 +62,12 @@ fun MarketplaceScreen(
     }
     val authRepository = remember { AuthRepository() }
     val isAdmin = authRepository.isAdmin
+    val isGuest = authRepository.isAnonymous
+    var showGuestPrompt by remember { mutableStateOf(false) }
+
+    fun requireLogin(action: () -> Unit) {
+        if (isGuest) showGuestPrompt = true else action()
+    }
 
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf(preselectedCategory) }
@@ -89,7 +97,7 @@ fun MarketplaceScreen(
                             Icon(Icons.Filled.Settings, contentDescription = "Admin orders")
                         }
                     }
-                    IconButton(onClick = onMyListingsClick, modifier = Modifier.padding(end = 8.dp)) {
+                    IconButton(onClick = { requireLogin(onMyListingsClick) }, modifier = Modifier.padding(end = 8.dp)) {
                         Icon(Icons.Filled.Edit, contentDescription = "My listings")
                     }
                 }
@@ -101,13 +109,13 @@ fun MarketplaceScreen(
                 onHomeClick = {},
                 onCategoriesClick = onCategoriesClick,
                 onCartClick = onCartClick,
-                onMyOrdersClick = onMyOrdersClick,
-                onProfileClick = onProfileClick,
+                onMyOrdersClick = { requireLogin(onMyOrdersClick) },
+                onProfileClick = { requireLogin(onProfileClick) },
                 cartItemCount = itemCount
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onSellClick) {
+            FloatingActionButton(onClick = { requireLogin(onSellClick) }) {
                 Icon(Icons.Filled.Add, contentDescription = "Sell a device")
             }
         }
@@ -178,9 +186,9 @@ fun MarketplaceScreen(
                             ProductCard(
                                 listing = listing,
                                 onClick = { onProductClick(listing.id) },
-                                onAddToCart = { cartViewModel.addToCart(listing) },
+                                onAddToCart = { requireLogin { cartViewModel.addToCart(listing) } },
                                 isWatched = watchedIds.contains(listing.id),
-                                onToggleWatch = { watchlistViewModel.toggleWatch(listing.id) },
+                                onToggleWatch = { requireLogin { watchlistViewModel.toggleWatch(listing.id) } },
                                 sellerRating = sellerSummaries[listing.sellerId]
                             )
                         }
@@ -188,5 +196,15 @@ fun MarketplaceScreen(
                 }
             }
         }
+    }
+
+    if (showGuestPrompt) {
+        GuestSignInPrompt(
+            onDismiss = { showGuestPrompt = false },
+            onSignIn = {
+                showGuestPrompt = false
+                onRequireLogin()
+            }
+        )
     }
 }

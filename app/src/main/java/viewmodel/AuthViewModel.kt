@@ -26,6 +26,20 @@ class AuthViewModel : ViewModel() {
     val isAdmin: Boolean
         get() = repository.isAdmin
 
+    val isAnonymous: Boolean
+        get() = repository.isAnonymous
+
+    fun continueAsGuest(onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _errorMessage.value = null
+            repository.signInAnonymously()
+                .onSuccess { onSuccess() }
+                .onFailure { _errorMessage.value = it.message ?: "Failed to continue as guest" }
+            _isLoading.value = false
+        }
+    }
+
     fun signUp(name: String, email: String, password: String, onSuccess: () -> Unit) {
         if (name.isBlank() || email.isBlank() || password.isBlank()) {
             _errorMessage.value = "Please fill in all fields"

@@ -244,6 +244,16 @@ fun LoginScreen(
             }
         }
 
+        Spacer(modifier = Modifier.height(12.dp))
+
+        TextButton(
+            onClick = { authViewModel.continueAsGuest { onLoginSuccess() } },
+            enabled = !isLoading,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Skip for now — browse as guest")
+        }
+
         if (showForgotPasswordDialog) {
             AlertDialog(
                 onDismissRequest = { showForgotPasswordDialog = false },

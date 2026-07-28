@@ -26,10 +26,15 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.dentalmarket.app.data.AuthRepository
 import com.dentalmarket.app.ui.components.CartItemRow
+import com.dentalmarket.app.ui.components.GuestSignInPrompt
 import com.dentalmarket.app.ui.theme.WarmAmber
 import com.dentalmarket.app.viewmodel.CartViewModel
 
@@ -37,12 +42,16 @@ import com.dentalmarket.app.viewmodel.CartViewModel
 @Composable
 fun CartScreen(
     cartViewModel: CartViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onRequireLogin: () -> Unit
 ) {
     val cartItems by cartViewModel.cartItems.collectAsState()
     val isPlacingOrder = cartViewModel.isPlacingOrder.value
     val orderPlacedSuccess = cartViewModel.orderPlacedSuccess.value
     val orderErrorMessage = cartViewModel.orderErrorMessage.value
+    val authRepository = remember { AuthRepository() }
+    val isGuest = authRepository.isAnonymous
+    var showGuestPrompt by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -84,7 +93,7 @@ fun CartScreen(
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Button(
-                        onClick = { cartViewModel.checkout() },
+                        onClick = { if (isGuest) showGuestPrompt = true else cartViewModel.checkout() },
                         enabled = !isPlacingOrder,
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -131,5 +140,15 @@ fun CartScreen(
                 }
             }
         }
+    }
+
+    if (showGuestPrompt) {
+        GuestSignInPrompt(
+            onDismiss = { showGuestPrompt = false },
+            onSignIn = {
+                showGuestPrompt = false
+                onRequireLogin()
+            }
+        )
     }
 }

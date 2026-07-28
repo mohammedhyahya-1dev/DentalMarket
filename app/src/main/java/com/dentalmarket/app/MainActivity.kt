@@ -94,14 +94,24 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
         composable("authGate") {
             val context = LocalContext.current
             LaunchedEffect(Unit) {
-                authViewModel.checkProfileComplete { complete ->
-                    val destination = when {
-                        !complete -> "completeProfile"
-                        shouldShowNotificationPrompt(context) -> "notificationPermission"
-                        else -> "marketplace"
-                    }
+                if (authViewModel.isAnonymous) {
+                    // Guests have no profile doc to check — skip straight to
+                    // the same notification-prompt-or-marketplace branch a
+                    // completed profile would take.
+                    val destination = if (shouldShowNotificationPrompt(context)) "notificationPermission" else "marketplace"
                     navController.navigate(destination) {
                         popUpTo("authGate") { inclusive = true }
+                    }
+                } else {
+                    authViewModel.checkProfileComplete { complete ->
+                        val destination = when {
+                            !complete -> "completeProfile"
+                            shouldShowNotificationPrompt(context) -> "notificationPermission"
+                            else -> "marketplace"
+                        }
+                        navController.navigate(destination) {
+                            popUpTo("authGate") { inclusive = true }
+                        }
                     }
                 }
             }
@@ -196,6 +206,7 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
                 onAdminOrdersClick = { navController.navigate("adminOrders") },
                 onMyListingsClick = { navController.navigate("myListings") },
                 onCategoriesClick = { navController.navigate("categories") },
+                onRequireLogin = { navController.navigate("login") },
                 preselectedCategory = preselectedCategory
             )
         }
@@ -213,44 +224,64 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
                 },
                 onCartClick = { navController.navigate("cart") },
                 onMyOrdersClick = { navController.navigate("myOrders") },
-                onProfileClick = { navController.navigate("profile") }
+                onProfileClick = { navController.navigate("profile") },
+                onRequireLogin = { navController.navigate("login") }
             )
         }
         composable("profile") {
-            ProfileScreen(
-                onBack = { navController.popBackStack() },
-                onSignOut = {
-                    authViewModel.signOut()
-                    navController.navigate("login") {
-                        popUpTo(0) { inclusive = true }
-                    }
-                },
-                onMyQuestionsClick = { navController.navigate("myQuestions") },
-                onAdminInquiriesClick = { navController.navigate("adminInquiries") },
-                onWatchlistClick = { navController.navigate("watchlist") }
-            )
+            // The bottom-nav Profile tab prompts guests to sign in before
+            // ever calling this, but guard the destination itself too —
+            // same defense-in-depth as the admin routes below.
+            if (authViewModel.isAnonymous) {
+                LaunchedEffect(Unit) { navController.popBackStack() }
+            } else {
+                ProfileScreen(
+                    onBack = { navController.popBackStack() },
+                    onSignOut = {
+                        authViewModel.signOut()
+                        navController.navigate("login") {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    },
+                    onMyQuestionsClick = { navController.navigate("myQuestions") },
+                    onAdminInquiriesClick = { navController.navigate("adminInquiries") },
+                    onWatchlistClick = { navController.navigate("watchlist") }
+                )
+            }
         }
         composable("watchlist") {
-            WatchlistScreen(
-                cartViewModel = cartViewModel,
-                onProductClick = { id -> navController.navigate("product/$id") },
-                onBack = { navController.popBackStack() }
-            )
+            if (authViewModel.isAnonymous) {
+                LaunchedEffect(Unit) { navController.popBackStack() }
+            } else {
+                WatchlistScreen(
+                    cartViewModel = cartViewModel,
+                    onProductClick = { id -> navController.navigate("product/$id") },
+                    onBack = { navController.popBackStack() }
+                )
+            }
         }
         composable("sell") {
-            SellScreen(
-                onPosted = { navController.popBackStack() }
-            )
+            if (authViewModel.isAnonymous) {
+                LaunchedEffect(Unit) { navController.popBackStack() }
+            } else {
+                SellScreen(
+                    onPosted = { navController.popBackStack() }
+                )
+            }
         }
         composable(
             "editListing/{listingId}",
             arguments = listOf(navArgument("listingId") { type = NavType.StringType })
         ) { backStackEntry ->
-            val listingId = backStackEntry.arguments?.getString("listingId") ?: ""
-            SellScreen(
-                onPosted = { navController.popBackStack() },
-                listingId = listingId
-            )
+            if (authViewModel.isAnonymous) {
+                LaunchedEffect(Unit) { navController.popBackStack() }
+            } else {
+                val listingId = backStackEntry.arguments?.getString("listingId") ?: ""
+                SellScreen(
+                    onPosted = { navController.popBackStack() },
+                    listingId = listingId
+                )
+            }
         }
         composable(
             "product/{productId}",
@@ -263,30 +294,40 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
                 inquiryViewModel = inquiryViewModel,
                 buyerId = authViewModel.currentUserId ?: "",
                 buyerName = "",
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onRequireLogin = { navController.navigate("login") }
             )
         }
         composable("cart") {
             CartScreen(
                 cartViewModel = cartViewModel,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onRequireLogin = { navController.navigate("login") }
             )
         }
         composable("myOrders") {
-            MyOrdersScreen(
-                onBack = { navController.popBackStack() },
-                onOrderClick = { order -> navController.navigate("orderDetail/${order.id}") }
-            )
+            if (authViewModel.isAnonymous) {
+                LaunchedEffect(Unit) { navController.popBackStack() }
+            } else {
+                MyOrdersScreen(
+                    onBack = { navController.popBackStack() },
+                    onOrderClick = { order -> navController.navigate("orderDetail/${order.id}") }
+                )
+            }
         }
         composable(
             "orderDetail/{orderId}",
             arguments = listOf(navArgument("orderId") { type = NavType.StringType })
         ) { backStackEntry ->
-            val orderId = backStackEntry.arguments?.getString("orderId") ?: ""
-            OrderDetailScreen(
-                orderId = orderId,
-                onBack = { navController.popBackStack() }
-            )
+            if (authViewModel.isAnonymous) {
+                LaunchedEffect(Unit) { navController.popBackStack() }
+            } else {
+                val orderId = backStackEntry.arguments?.getString("orderId") ?: ""
+                OrderDetailScreen(
+                    orderId = orderId,
+                    onBack = { navController.popBackStack() }
+                )
+            }
         }
         composable("adminOrders") {
             // The Profile/Marketplace links only show for admins, but that's
@@ -302,10 +343,14 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
             }
         }
         composable("myListings") {
-            MyListingsScreen(
-                onBack = { navController.popBackStack() },
-                onEditListing = { id -> navController.navigate("editListing/$id") }
-            )
+            if (authViewModel.isAnonymous) {
+                LaunchedEffect(Unit) { navController.popBackStack() }
+            } else {
+                MyListingsScreen(
+                    onBack = { navController.popBackStack() },
+                    onEditListing = { id -> navController.navigate("editListing/$id") }
+                )
+            }
         }
         composable("myQuestions") {
             MyQuestionsScreen(
