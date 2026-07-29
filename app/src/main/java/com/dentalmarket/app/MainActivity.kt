@@ -123,6 +123,10 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
             LoginScreen(
                 authViewModel = authViewModel,
                 onLoginSuccess = {
+                    // Covers every path that lands here: normal login, signup,
+                    // guest skip, and guest-upgrade linking — none of those
+                    // should carry over whatever was in the cart before.
+                    cartViewModel.clearCart()
                     navController.navigate("authGate") {
                         popUpTo("login") { inclusive = true }
                     }
@@ -156,6 +160,7 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
                 },
                 onSignOut = {
                     authViewModel.signOut()
+                    cartViewModel.clearCart()
                     navController.navigate("login") {
                         popUpTo(0) { inclusive = true }
                     }
@@ -239,6 +244,7 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
                     onBack = { navController.popBackStack() },
                     onSignOut = {
                         authViewModel.signOut()
+                        cartViewModel.clearCart()
                         navController.navigate("login") {
                             popUpTo(0) { inclusive = true }
                         }

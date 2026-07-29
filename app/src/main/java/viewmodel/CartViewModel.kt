@@ -56,6 +56,14 @@ class CartViewModel : ViewModel() {
         _cartItems.update { current -> current.filterNot { it.listing.id == listingId } }
     }
 
+    // CartViewModel outlives any single signed-in identity (it's created once
+    // for the app's whole session), so whoever calls sign-out/sign-in/guest
+    // upgrade must call this too — otherwise one account's cart carries over
+    // into the next session that reuses this same ViewModel instance.
+    fun clearCart() {
+        _cartItems.value = emptyList()
+    }
+
     // Places one Order per cart item (cash-on-delivery), marks each listing
     // as sold so it disappears from the marketplace, then empties the cart.
     fun checkout() {
