@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dentalmarket.app.data.InquiryRepository
 import com.dentalmarket.app.model.Inquiry
+import com.dentalmarket.app.util.ContactFilterResult
+import com.dentalmarket.app.util.ContactInfoFilter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -22,6 +24,10 @@ class InquiryViewModel : ViewModel() {
     val inquiries: StateFlow<List<Inquiry>> = _inquiries
 
     fun submitInquiry(inquiry: Inquiry, onSuccess: () -> Unit) {
+        if (ContactInfoFilter.scan(inquiry.question) is ContactFilterResult.Blocked) {
+            _errorMessage.value = ContactInfoFilter.BLOCKED_MESSAGE
+            return
+        }
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
@@ -55,6 +61,10 @@ class InquiryViewModel : ViewModel() {
     }
 
     fun answerInquiry(inquiryId: String, answer: String, onSuccess: () -> Unit) {
+        if (ContactInfoFilter.scan(answer) is ContactFilterResult.Blocked) {
+            _errorMessage.value = ContactInfoFilter.BLOCKED_MESSAGE
+            return
+        }
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null

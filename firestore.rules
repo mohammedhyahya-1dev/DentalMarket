@@ -20,6 +20,23 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/orders/$(orderId)).data;
     }
 
+    // Backstop for ContactInfoFilter.kt (client-side) so a modified client
+    // can't bypass the off-platform-contact block by writing straight to
+    // Firestore. This only catches the strict/compact forms (plain phone
+    // numbers in either digit system, plain emails, and the clearest
+    // call-me/whatsapp phrases) — the looser evasions (spaced-out or
+    // spelled-out digits) aren't practical to express in RE2 and are left to
+    // the client-side pass, which is the primary defense either way.
+    function looksLikeContactInfo(text) {
+      let t = text.lower();
+      return
+        t.matches('.*[a-z0-9._%+-]+@[a-z0-9-]+\\.[a-z]{2,}.*') ||
+        t.matches('.*(0|٠)(7|٧)[0-9٠-٩]{9}.*') ||
+        t.matches('.*(\\+|00)?964[0-9٠-٩]{10}.*') ||
+        t.matches('.*(call me|text me|my number|phone number|whatsapp|whats app|contact me|reach me|message me on|dm me|viber|telegram|imo).*') ||
+        t.matches('.*(رقمي|رقم هاتفي|اتصل بي|اتصلي بي|كلمني|خابرني|اطلبني|رنلي|رن لي|راسلني|تواصل معي|واتساب|واتس اب|واتسب|تليجرام|تلغرام|فايبر).*');
+    }
+
     // users/{uid}: one profile doc per dentist.
     match /users/{userId} {
       allow get: if isSignedIn();
@@ -61,12 +78,13 @@ service cloud.firestore {
 
     // inquiries/{id}: buyers see their own questions; only admins see/answer all.
     match /inquiries/{inquiryId} {
-      allow create: if isSignedIn() && request.resource.data.buyerId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.buyerId == request.auth.uid &&
+        !looksLikeContactInfo(request.resource.data.question);
       allow get: if isSignedIn() &&
         (resource.data.buyerId == request.auth.uid || isAdmin());
       allow list: if isAdmin() ||
         (isSignedIn() && resource.data.buyerId == request.auth.uid);
-      allow update: if isAdmin();
+      allow update: if isAdmin() && !looksLikeContactInfo(request.resource.data.answer);
       allow delete: if false;
     }
 

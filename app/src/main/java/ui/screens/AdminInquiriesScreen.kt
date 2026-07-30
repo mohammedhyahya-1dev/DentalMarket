@@ -42,6 +42,11 @@ fun AdminInquiriesScreen(
 ) {
     val inquiries by inquiryViewModel.inquiries.collectAsState()
     val isLoading by inquiryViewModel.isLoading.collectAsState()
+    val errorMessage by inquiryViewModel.errorMessage.collectAsState()
+    // Tracks which card's answer attempt the current error belongs to, since
+    // errorMessage is a single shared slot but the list can have several
+    // unanswered inquiries open at once.
+    var errorInquiryId by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         inquiryViewModel.loadAllInquiries()
@@ -86,8 +91,11 @@ fun AdminInquiriesScreen(
             items(inquiries) { inquiry ->
                 InquiryCard(
                     inquiry = inquiry,
+                    errorMessage = if (errorInquiryId == inquiry.id) errorMessage else null,
                     onAnswer = { answer ->
+                        errorInquiryId = inquiry.id
                         inquiryViewModel.answerInquiry(inquiry.id, answer) {
+                            errorInquiryId = null
                             inquiryViewModel.loadAllInquiries()
                         }
                     }
@@ -100,6 +108,7 @@ fun AdminInquiriesScreen(
 @Composable
 private fun InquiryCard(
     inquiry: Inquiry,
+    errorMessage: String?,
     onAnswer: (String) -> Unit
 ) {
     var answerText by remember { mutableStateOf("") }
@@ -141,6 +150,14 @@ private fun InquiryCard(
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
                 ) {
                     Text("Send Answer")
+                }
+                errorMessage?.let {
+                    Text(
+                        it,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
                 }
             }
         }

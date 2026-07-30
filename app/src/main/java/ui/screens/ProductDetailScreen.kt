@@ -86,6 +86,7 @@ fun ProductDetailScreen(
     val watchedIds by watchlistViewModel.watchedIds.collectAsState()
     val isWatched = watchedIds.contains(listingId)
     val sellerSummaries by ratingViewModel.sellerSummaries.collectAsState()
+    val inquiryErrorMessage by inquiryViewModel.errorMessage.collectAsState()
 
     LaunchedEffect(listingId) {
         val result = repository.getListingById(listingId)
@@ -253,12 +254,18 @@ fun ProductDetailScreen(
                     onDismissRequest = { showQuestionDialog = false },
                     title = { Text("Ask a Question") },
                     text = {
-                        OutlinedTextField(
-                            value = questionText,
-                            onValueChange = { questionText = it },
-                            label = { Text("Your question") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        Column {
+                            OutlinedTextField(
+                                value = questionText,
+                                onValueChange = { questionText = it },
+                                label = { Text("Your question") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            inquiryErrorMessage?.let {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
                     },
                     confirmButton = {
                         Button(
