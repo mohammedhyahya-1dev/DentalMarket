@@ -19,6 +19,11 @@ class OrderViewModel : ViewModel() {
     var selectedOrder = mutableStateOf<Order?>(null)
     var isLoadingOrder = mutableStateOf(false)
 
+    // Separate from isLoading/errorMessage above so submitting a payment
+    // reference from a dialog doesn't trigger the full-screen list spinner.
+    var isSubmittingPayment = mutableStateOf(false)
+    var paymentErrorMessage = mutableStateOf<String?>(null)
+
     fun loadOrder(orderId: String) {
         isLoadingOrder.value = true
         viewModelScope.launch {
@@ -50,17 +55,56 @@ class OrderViewModel : ViewModel() {
         }
     }
 
-    // Moves an order to the next step in the fulfillment pipeline.
+    // Moves an order to the next step in the fulfillment pipeline. The
+    // admin UI already hides this button when nextOrderStatus() would
+    // return null, but the check is repeated here too, same defense-in-depth
+    // as everywhere else in this app.
     fun advanceStatus(order: Order) {
-        val next = when (order.status) {
-            "PLACED" -> "PICKED_UP"
-            "PICKED_UP" -> "DELIVERED"
-            "DELIVERED" -> "PAID_TO_SELLER"
-            else -> return
-        }
+        val next = nextOrderStatus(order.status, order.paymentStatus) ?: return
         viewModelScope.launch {
             repository.updateOrderStatus(order.id, next)
             loadAllOrders()
         }
+    }
+
+    fun submitPaymentReference(order: Order, reference: String, onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            isSubmittingPayment.value = true
+            paymentErrorMessage.value = null
+            repository.submitPaymentReference(order.id, reference)
+                .onSuccess {
+                    loadMyOrders()
+                    onSuccess()
+                }
+                .onFailure { paymentErrorMessage.value = it.message ?: "Failed to submit payment reference" }
+            isSubmittingPayment.value = false
+        }
+    }
+
+    fun verifyPayment(order: Order) {
+        viewModelScope.launch {
+            repository.verifyPayment(order.id)
+            loadAllOrders()
+        }
+    }
+
+    fun rejectPayment(order: Order, reason: String) {
+        viewModelScope.launch {
+            repository.rejectPayment(order.id, reason)
+            loadAllOrders()
+        }
+    }
+}
+
+// Pure decision function for the fulfillment pipeline, kept free of any
+// Firebase/ViewModel dependency so it's directly unit-testable. Returns null
+// when there's no next step (terminal status) or the step is blocked
+// (PLACED -> PICKED_UP requires a verified payment).
+fun nextOrderStatus(currentStatus: String, paymentStatus: String): String? {
+    return when (currentStatus) {
+        "PLACED" -> if (paymentStatus == "VERIFIED") "PICKED_UP" else null
+        "PICKED_UP" -> "DELIVERED"
+        "DELIVERED" -> "PAID_TO_SELLER"
+        else -> null
     }
 }

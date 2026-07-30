@@ -59,4 +59,54 @@ class OrderRepository {
             Result.failure(e)
         }
     }
+
+    // These three are the swappable seam: today a buyer types a reference
+    // number and an admin manually checks it, but nothing here presumes a
+    // human is on either end — a future ZainCash/QiCard API integration can
+    // call the same two verification methods from a webhook instead of a
+    // button tap, with no change to the Order model or the rest of the app.
+
+    suspend fun submitPaymentReference(orderId: String, reference: String): Result<Unit> {
+        return try {
+            ordersCollection.document(orderId).update(
+                mapOf(
+                    "paymentReference" to reference,
+                    "paymentSubmittedAt" to System.currentTimeMillis(),
+                    "paymentStatus" to "PENDING_VERIFICATION"
+                )
+            ).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun verifyPayment(orderId: String): Result<Unit> {
+        return try {
+            ordersCollection.document(orderId).update(
+                mapOf(
+                    "paymentStatus" to "VERIFIED",
+                    "paymentVerifiedAt" to System.currentTimeMillis()
+                )
+            ).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun rejectPayment(orderId: String, reason: String): Result<Unit> {
+        return try {
+            ordersCollection.document(orderId).update(
+                mapOf(
+                    "paymentStatus" to "REJECTED",
+                    "paymentRejectionReason" to reason,
+                    "paymentVerifiedAt" to System.currentTimeMillis()
+                )
+            ).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

@@ -14,7 +14,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dentalmarket.app.model.Order
+import com.dentalmarket.app.ui.components.PaymentStatusBadge
 import com.dentalmarket.app.viewmodel.OrderViewModel
+import com.dentalmarket.app.viewmodel.nextOrderStatus
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -24,6 +26,7 @@ fun AdminOrdersScreen(
 ) {
     val orders = viewModel.orders.value
     val isLoading = viewModel.isLoading.value
+    var orderToReject by remember { mutableStateOf<Order?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.loadAllOrders()
@@ -54,16 +57,37 @@ fun AdminOrdersScreen(
                     contentPadding = PaddingValues(vertical = 12.dp)
                 ) {
                     items(orders, key = { it.id }) { order ->
-                        AdminOrderCard(order = order, onAdvance = { viewModel.advanceStatus(order) })
+                        AdminOrderCard(
+                            order = order,
+                            onAdvance = { viewModel.advanceStatus(order) },
+                            onVerifyPayment = { viewModel.verifyPayment(order) },
+                            onRejectPaymentClick = { orderToReject = order }
+                        )
                     }
                 }
             }
         }
     }
+
+    orderToReject?.let { order ->
+        RejectPaymentDialog(
+            order = order,
+            onDismiss = { orderToReject = null },
+            onConfirm = { reason ->
+                viewModel.rejectPayment(order, reason)
+                orderToReject = null
+            }
+        )
+    }
 }
 
 @Composable
-fun AdminOrderCard(order: Order, onAdvance: () -> Unit) {
+fun AdminOrderCard(
+    order: Order,
+    onAdvance: () -> Unit,
+    onVerifyPayment: (() -> Unit)? = null,
+    onRejectPaymentClick: (() -> Unit)? = null
+) {
     Card(shape = RoundedCornerShape(16.dp)) {
         Column(modifier = Modifier.padding(14.dp).fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -81,8 +105,42 @@ fun AdminOrderCard(order: Order, onAdvance: () -> Unit) {
             Text("Buyer: ${order.buyerName}", style = MaterialTheme.typography.bodySmall)
             Text("Seller: ${order.sellerName}", style = MaterialTheme.typography.bodySmall)
             Spacer(modifier = Modifier.height(8.dp))
-            StatusBadge(order.status)
-            if (order.status != "PAID_TO_SELLER" && order.status != "CANCELLED") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatusBadge(order.status)
+                PaymentStatusBadge(order.paymentStatus)
+            }
+
+            if (order.paymentStatus == "PENDING_VERIFICATION") {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "Reference: ${order.paymentReference}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = { onVerifyPayment?.invoke() },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Verify Payment")
+                    }
+                    OutlinedButton(
+                        onClick = { onRejectPaymentClick?.invoke() },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Reject Payment")
+                    }
+                }
+            } else if (order.paymentStatus == "REJECTED" && order.paymentRejectionReason.isNotBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "Rejected: ${order.paymentRejectionReason}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+
+            if (nextOrderStatus(order.status, order.paymentStatus) != null) {
                 Spacer(modifier = Modifier.height(10.dp))
                 Button(onClick = onAdvance, modifier = Modifier.fillMaxWidth()) {
                     Text("Advance to Next Stage")
@@ -90,4 +148,44 @@ fun AdminOrderCard(order: Order, onAdvance: () -> Unit) {
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RejectPaymentDialog(
+    order: Order,
+    onDismiss: () -> Unit,
+    onConfirm: (reason: String) -> Unit
+) {
+    var reason by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Reject Payment") },
+        text = {
+            Column {
+                Text(
+                    "Reference: ${order.paymentReference}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = reason,
+                    onValueChange = { reason = it },
+                    label = { Text("Reason (optional)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onConfirm(reason) }) {
+                Text("Reject")
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }

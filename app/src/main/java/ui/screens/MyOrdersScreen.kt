@@ -18,10 +18,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.dentalmarket.app.data.PaymentConfigRepository
 import com.dentalmarket.app.model.Order
 import com.dentalmarket.app.model.OrderStatus
+import com.dentalmarket.app.model.PaymentConfig
 import com.dentalmarket.app.model.Rating
 import com.dentalmarket.app.ui.components.OrderStatusTracker
+import com.dentalmarket.app.ui.components.PaymentStatusBadge
 import com.dentalmarket.app.ui.theme.WarmAmber
 import com.dentalmarket.app.viewmodel.OrderViewModel
 import com.dentalmarket.app.viewmodel.RatingViewModel
@@ -43,9 +46,19 @@ fun MyOrdersScreen(
     val ratingErrorMessage by ratingViewModel.errorMessage.collectAsState()
     var orderToRate by remember { mutableStateOf<Order?>(null) }
 
+    val paymentConfigRepository = remember { PaymentConfigRepository() }
+    var paymentConfig by remember { mutableStateOf<PaymentConfig?>(null) }
+    var paymentConfigLoadFailed by remember { mutableStateOf(false) }
+    var orderForPayment by remember { mutableStateOf<Order?>(null) }
+    val isSubmittingPayment = viewModel.isSubmittingPayment.value
+    val paymentErrorMessage = viewModel.paymentErrorMessage.value
+
     LaunchedEffect(Unit) {
         viewModel.loadMyOrders()
         ratingViewModel.loadMyRatedOrders()
+        paymentConfigRepository.getPaymentConfig()
+            .onSuccess { paymentConfig = it }
+            .onFailure { paymentConfigLoadFailed = true }
     }
 
     Scaffold(
@@ -80,7 +93,8 @@ fun MyOrdersScreen(
                             order = order,
                             canRate = order.status in RATABLE_STATUSES && order.id !in ratedOrderIds,
                             onRateClick = { orderToRate = order },
-                            onClick = { onOrderClick(order) }
+                            onClick = { onOrderClick(order) },
+                            onEnterPaymentReferenceClick = { orderForPayment = order }
                         )
                     }
                 }
@@ -113,6 +127,22 @@ fun MyOrdersScreen(
             }
         )
     }
+
+    orderForPayment?.let { order ->
+        PaymentReferenceDialog(
+            order = order,
+            paymentConfig = paymentConfig,
+            paymentConfigLoadFailed = paymentConfigLoadFailed,
+            isSubmitting = isSubmittingPayment,
+            errorMessage = paymentErrorMessage,
+            onDismiss = { orderForPayment = null },
+            onSubmit = { reference ->
+                viewModel.submitPaymentReference(order, reference) {
+                    orderForPayment = null
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -120,7 +150,8 @@ fun OrderCard(
     order: Order,
     canRate: Boolean = false,
     onRateClick: (() -> Unit)? = null,
-    onClick: (() -> Unit)? = null
+    onClick: (() -> Unit)? = null,
+    onEnterPaymentReferenceClick: (() -> Unit)? = null
 ) {
     Card(
         shape = RoundedCornerShape(16.dp),
@@ -139,7 +170,24 @@ fun OrderCard(
                 }
             }
             Spacer(modifier = Modifier.height(10.dp))
+            PaymentStatusBadge(order.paymentStatus)
+            if (order.paymentStatus == "REJECTED" && order.paymentRejectionReason.isNotBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "Reason: ${order.paymentRejectionReason}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+            Spacer(modifier = Modifier.height(10.dp))
             OrderStatusTracker(order.status, compact = true)
+            val canEnterReference = order.paymentStatus == "AWAITING_PAYMENT" || order.paymentStatus == "REJECTED"
+            if (canEnterReference && onEnterPaymentReferenceClick != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Button(onClick = onEnterPaymentReferenceClick, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (order.paymentStatus == "REJECTED") "Resubmit Payment Reference" else "Enter Payment Reference")
+                }
+            }
             if (canRate && onRateClick != null) {
                 Spacer(modifier = Modifier.height(10.dp))
                 OutlinedButton(onClick = onRateClick, modifier = Modifier.fillMaxWidth()) {
@@ -218,6 +266,85 @@ private fun RateSellerDialog(
             Button(
                 onClick = { onSubmit(stars, review) },
                 enabled = !isSubmitting
+            ) {
+                Text("Submit")
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss, enabled = !isSubmitting) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PaymentReferenceDialog(
+    order: Order,
+    paymentConfig: PaymentConfig?,
+    paymentConfigLoadFailed: Boolean,
+    isSubmitting: Boolean,
+    errorMessage: String?,
+    onDismiss: () -> Unit,
+    onSubmit: (reference: String) -> Unit
+) {
+    var reference by remember { mutableStateOf("") }
+    val amountDue = order.price * order.quantity
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Payment Instructions") },
+        text = {
+            Column {
+                Text(
+                    "Pay $" + "%.2f".format(amountDue) + " via QiCard or ZainCash to:",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                when {
+                    paymentConfigLoadFailed -> Text(
+                        "Couldn't load payment account details. Please try again shortly or contact support.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    paymentConfig == null -> CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                    else -> {
+                        Text(
+                            "QiCard: ${paymentConfig.qicardAccount}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            "ZainCash: ${paymentConfig.zaincashAccount}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    "Then enter the transaction reference number from your receipt below.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = reference,
+                    onValueChange = { reference = it },
+                    label = { Text("Transaction reference number") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                errorMessage?.let {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSubmit(reference) },
+                enabled = !isSubmitting && reference.isNotBlank()
             ) {
                 Text("Submit")
             }
