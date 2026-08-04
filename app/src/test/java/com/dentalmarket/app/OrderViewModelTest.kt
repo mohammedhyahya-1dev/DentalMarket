@@ -1,6 +1,6 @@
 package com.dentalmarket.app
 
-import com.dentalmarket.app.viewmodel.calculateCommission
+import com.dentalmarket.app.viewmodel.calculatePayout
 import com.dentalmarket.app.viewmodel.nextOrderStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -50,7 +50,7 @@ class OrderViewModelTest {
 
     @Test
     fun `commission splits item total between platform and seller`() {
-        val breakdown = calculateCommission(itemTotal = 250.0, commissionPercentage = 10.0)
+        val breakdown = calculatePayout(itemTotal = 250.0, commissionPercentage = 10.0, deliveryFee = 0.0)
         assertEquals(250.0, breakdown.itemTotal, 0.0001)
         assertEquals(25.0, breakdown.commissionAmount, 0.0001)
         assertEquals(225.0, breakdown.sellerReceives, 0.0001)
@@ -58,15 +58,23 @@ class OrderViewModelTest {
 
     @Test
     fun `zero commission gives the seller the full amount`() {
-        val breakdown = calculateCommission(itemTotal = 100.0, commissionPercentage = 0.0)
+        val breakdown = calculatePayout(itemTotal = 100.0, commissionPercentage = 0.0, deliveryFee = 0.0)
         assertEquals(0.0, breakdown.commissionAmount, 0.0001)
         assertEquals(100.0, breakdown.sellerReceives, 0.0001)
     }
 
     @Test
     fun `commission handles fractional cents`() {
-        val breakdown = calculateCommission(itemTotal = 19.99, commissionPercentage = 7.5)
+        val breakdown = calculatePayout(itemTotal = 19.99, commissionPercentage = 7.5, deliveryFee = 0.0)
         assertEquals(1.499250, breakdown.commissionAmount, 0.0001)
         assertEquals(18.49075, breakdown.sellerReceives, 0.0001)
+    }
+
+    @Test
+    fun `delivery fee is deducted from the seller alongside commission`() {
+        val breakdown = calculatePayout(itemTotal = 250.0, commissionPercentage = 10.0, deliveryFee = 5.0)
+        assertEquals(25.0, breakdown.commissionAmount, 0.0001)
+        assertEquals(5.0, breakdown.deliveryFee, 0.0001)
+        assertEquals(220.0, breakdown.sellerReceives, 0.0001)
     }
 }

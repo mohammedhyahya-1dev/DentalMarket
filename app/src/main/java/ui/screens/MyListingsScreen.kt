@@ -136,7 +136,7 @@ fun MyListingCard(
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 if (listing.deliveryMethod == "DENTALMARKET_DELIVERS") {
-                    "Delivery: DentalMarket delivers (+$" + "%.2f".format(deliveryFeeAmount) + ")"
+                    "Delivery: DentalMarket delivers (fee deducted from your payout: $" + "%.2f".format(deliveryFeeAmount) + ")"
                 } else {
                     "Delivery: Seller delivers"
                 },

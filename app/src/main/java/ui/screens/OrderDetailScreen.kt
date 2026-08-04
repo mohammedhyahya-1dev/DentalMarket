@@ -81,7 +81,7 @@ fun OrderDetailScreen(
             Text("Delivery", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.outline)
             Text(
                 if (currentOrder.deliveryMethod == "DENTALMARKET_DELIVERS") {
-                    "DentalMarket delivers ($" + "%.2f".format(currentOrder.deliveryFee) + ")"
+                    "DentalMarket delivers"
                 } else {
                     "Seller delivers"
                 },

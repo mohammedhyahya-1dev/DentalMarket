@@ -124,21 +124,26 @@ fun nextOrderStatus(currentStatus: String, paymentStatus: String, deliveryMethod
     }
 }
 
-data class CommissionBreakdown(
+data class PayoutBreakdown(
     val itemTotal: Double,
     val commissionAmount: Double,
+    val deliveryFee: Double,
     val sellerReceives: Double
 )
 
 // Pure calculation, free of any Firebase/ViewModel dependency, same reasoning
 // as nextOrderStatus() above. Used both for the locked-in per-order figures
-// (Order.commissionPercentage) and for live pre-sale estimates (Sell screen,
-// listing detail) against the current config/commission percentage.
-fun calculateCommission(itemTotal: Double, commissionPercentage: Double): CommissionBreakdown {
+// (Order.commissionPercentage, Order.deliveryFee) and for live pre-sale
+// estimates (Sell screen, listing detail) against the current config values.
+// deliveryFee has no default — it's financial math, and a silently-assumed
+// 0.0 at a call site that forgot to pass it would just look like an
+// (incorrectly) higher payout rather than fail loudly.
+fun calculatePayout(itemTotal: Double, commissionPercentage: Double, deliveryFee: Double): PayoutBreakdown {
     val commissionAmount = itemTotal * (commissionPercentage / 100.0)
-    return CommissionBreakdown(
+    return PayoutBreakdown(
         itemTotal = itemTotal,
         commissionAmount = commissionAmount,
-        sellerReceives = itemTotal - commissionAmount
+        deliveryFee = deliveryFee,
+        sellerReceives = itemTotal - commissionAmount - deliveryFee
     )
 }

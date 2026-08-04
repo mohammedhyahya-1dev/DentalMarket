@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -26,8 +27,8 @@ fun CartItemRow(
     onIncrease: () -> Unit,
     onDecrease: () -> Unit,
     onRemove: () -> Unit,
+    onToggleSafetyFee: () -> Unit,
     modifier: Modifier = Modifier,
-    deliveryFeeAmount: Double = 0.0,
     safetyFeeAmount: Double = 0.0
 ) {
     Row(
@@ -46,18 +47,21 @@ fun CartItemRow(
             )
             Text(
                 if (item.listing.deliveryMethod == "DENTALMARKET_DELIVERS") {
-                    "DentalMarket delivers (+$" + "%.2f".format(deliveryFeeAmount) + ")"
+                    "DentalMarket delivers"
                 } else {
                     "Seller delivers"
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.outline
             )
-            Text(
-                "Safety fee: $" + "%.2f".format(safetyFeeAmount * item.quantity),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.outline
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = item.safetyFeeSelected, onCheckedChange = { onToggleSafetyFee() })
+                Text(
+                    "Add buyer safety fee (+$" + "%.2f".format(safetyFeeAmount) + ")",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
         }
         IconButton(onClick = onDecrease) {
             Text("\u2212", fontSize = 20.sp)

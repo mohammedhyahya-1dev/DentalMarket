@@ -36,17 +36,20 @@ data class Order(
     // DENTALMARKET_DELIVERS, same as every other stage.
     val deliveryMethod: String = "SELLER_DELIVERS",
     // Locked in at checkout from config/delivery, same reasoning as
-    // commissionPercentage above — 0 for SELLER_DELIVERS.
+    // commissionPercentage above — 0 for SELLER_DELIVERS. Deducted from the
+    // seller's payout (same treatment as commission), never charged to the
+    // buyer.
     val deliveryFee: Double = 0.0,
     // Set when the buyer taps "I received this". Unused today beyond being
     // a record, but it's the hook a future auto-release-after-waiting-period
     // job would read from without another schema change.
     val deliveryConfirmedAt: Long = 0,
-    // Locked in at checkout from config/safetyFee (feeAmount * quantity),
-    // same reasoning as commissionPercentage/deliveryFee above — a later
-    // change to the configured fee shouldn't retroactively change what an
-    // already-placed order shows the buyer was charged. Paid by the buyer,
-    // never reaches the seller.
+    // Locked in at checkout from config/safetyFee, same reasoning as
+    // commissionPercentage/deliveryFee above — a later change to the
+    // configured fee shouldn't retroactively change what an already-placed
+    // order shows the buyer was charged. Flat amount, only present if the
+    // buyer opted in for this specific item at checkout (not multiplied by
+    // quantity). Paid by the buyer, never reaches the seller.
     val safetyFee: Double = 0.0
 )
 

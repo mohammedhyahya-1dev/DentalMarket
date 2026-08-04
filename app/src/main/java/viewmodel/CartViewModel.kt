@@ -33,23 +33,11 @@ class CartViewModel : ViewModel() {
     var orderPlacedSuccess = mutableStateOf(false)
     var orderErrorMessage = mutableStateOf<String?>(null)
 
-    // Live current fee, fetched once when the cart screen opens — purely so
-    // the "DentalMarket delivers (+$X)" choice label shows a real number.
-    // The value actually locked onto each Order is resolved fresh inside
-    // checkout() below, not read from this cached copy.
-    var deliveryFeeAmount = mutableStateOf<Double?>(null)
-
-    fun loadDeliveryConfig() {
-        viewModelScope.launch {
-            deliveryConfigRepository.getDeliveryConfig()
-                .onSuccess { deliveryFeeAmount.value = it.feeAmount }
-        }
-    }
-
-    // Live current per-unit fee, fetched once when the cart screen opens —
-    // purely so each CartItemRow can show a real "Safety fee: $X" number.
-    // The value actually locked onto each Order is resolved fresh inside
-    // checkout() below, not read from this cached copy.
+    // Live current flat fee, fetched once when the cart screen opens —
+    // purely so each CartItemRow's checkbox label can show a real
+    // "Add buyer safety fee (+$X)" number. The value actually locked onto
+    // each Order is resolved fresh inside checkout() below, not read from
+    // this cached copy.
     var safetyFeeAmount = mutableStateOf<Double?>(null)
 
     fun loadSafetyFeeConfig() {
@@ -88,6 +76,14 @@ class CartViewModel : ViewModel() {
         _cartItems.update { current -> current.filterNot { it.listing.id == listingId } }
     }
 
+    fun toggleSafetyFee(listingId: String) {
+        _cartItems.update { current ->
+            current.map {
+                if (it.listing.id == listingId) it.copy(safetyFeeSelected = !it.safetyFeeSelected) else it
+            }
+        }
+    }
+
     // CartViewModel outlives any single signed-in identity (it's created once
     // for the app's whole session), so whoever calls sign-out/sign-in/guest
     // upgrade must call this too — otherwise one account's cart carries over
@@ -100,9 +96,10 @@ class CartViewModel : ViewModel() {
     // as sold so it disappears from the marketplace, then empties the cart.
     // Delivery method is the seller's own choice, set on the listing at
     // posting time — read per item here, not decided by the buyer at
-    // checkout. The fee amount itself is still the single platform-wide
-    // config/delivery figure, resolved once per checkout and applied to
-    // whichever items need it.
+    // checkout. deliveryFee is still resolved and locked onto the Order the
+    // same way, but it's now deducted from the seller's payout rather than
+    // charged to the buyer — see calculatePayout(). safetyFee is a flat,
+    // per-item opt-in (item.safetyFeeSelected), not multiplied by quantity.
     fun checkout() {
         val buyerId = authRepository.currentUserId
         if (buyerId == null) {
@@ -145,7 +142,7 @@ class CartViewModel : ViewModel() {
                     commissionPercentage = commissionPercentage,
                     deliveryMethod = item.listing.deliveryMethod,
                     deliveryFee = deliveryFee,
-                    safetyFee = configuredSafetyFee * item.quantity
+                    safetyFee = if (item.safetyFeeSelected) configuredSafetyFee else 0.0
                 )
                 val orderResult = orderRepository.placeOrder(order)
                 if (orderResult.isFailure) {

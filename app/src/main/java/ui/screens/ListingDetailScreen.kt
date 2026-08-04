@@ -14,7 +14,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dentalmarket.app.viewmodel.MyListingsViewModel
-import com.dentalmarket.app.viewmodel.calculateCommission
+import com.dentalmarket.app.viewmodel.calculatePayout
 
 // Read-only view of a seller's own listing, reached by tapping a card in
 // My Listings. Unlike ProductDetailScreen (the buyer-facing marketplace
@@ -93,12 +93,18 @@ fun ListingDetailScreen(
                 )
             }
 
+            val deliveryFeeToSubtract = if (currentListing.deliveryMethod == "DENTALMARKET_DELIVERS") {
+                deliveryFeeAmount
+            } else {
+                0.0
+            }
             if (commissionPercentage != null) {
                 Spacer(modifier = Modifier.height(12.dp))
-                val breakdown = calculateCommission(currentListing.price, commissionPercentage)
+                val breakdown = calculatePayout(currentListing.price, commissionPercentage, deliveryFeeToSubtract)
                 Text(
                     "You'll receive approximately $" + "%.2f".format(breakdown.sellerReceives) +
-                        " after our ${"%.1f".format(commissionPercentage)}% platform fee.",
+                        " after our ${"%.1f".format(commissionPercentage)}% platform fee" +
+                        if (deliveryFeeToSubtract > 0) " and $" + "%.2f".format(deliveryFeeToSubtract) + " delivery fee." else ".",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline
                 )
@@ -108,7 +114,7 @@ fun ListingDetailScreen(
             Text("Delivery", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.outline)
             Text(
                 if (currentListing.deliveryMethod == "DENTALMARKET_DELIVERS") {
-                    "DentalMarket delivers (+$" + "%.2f".format(deliveryFeeAmount) + ")"
+                    "DentalMarket delivers (fee deducted from your payout: $" + "%.2f".format(deliveryFeeAmount) + ")"
                 } else {
                     "Seller delivers"
                 },

@@ -16,7 +16,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dentalmarket.app.model.Order
 import com.dentalmarket.app.ui.components.PaymentStatusBadge
 import com.dentalmarket.app.viewmodel.OrderViewModel
-import com.dentalmarket.app.viewmodel.calculateCommission
+import com.dentalmarket.app.viewmodel.calculatePayout
 import com.dentalmarket.app.viewmodel.nextOrderStatus
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -170,7 +170,7 @@ fun AdminOrderCard(
 @Composable
 private fun DeliveryInfoRow(order: Order) {
     val methodLabel = if (order.deliveryMethod == "DENTALMARKET_DELIVERS") {
-        "DentalMarket delivers (fee: $" + "%.2f".format(order.deliveryFee) + ")"
+        "DentalMarket delivers (fee deducted from seller: $" + "%.2f".format(order.deliveryFee) + ")"
     } else {
         "Seller delivers"
     }
@@ -195,10 +195,11 @@ private fun SafetyFeeRow(order: Order) {
 
 // The manual-payout reference: this app has no automated payment API, so
 // this is purely a calculated display telling the admin what to actually
-// send the seller — nothing here transfers money.
+// send the seller — nothing here transfers money. Both commission and (when
+// DENTALMARKET_DELIVERS) the delivery fee come out of the seller's payout.
 @Composable
 private fun CommissionBreakdownRow(order: Order) {
-    val breakdown = calculateCommission(order.price * order.quantity, order.commissionPercentage)
+    val breakdown = calculatePayout(order.price * order.quantity, order.commissionPercentage, order.deliveryFee)
     Column {
         Text(
             "Item total: $" + "%.2f".format(breakdown.itemTotal) +
@@ -207,6 +208,13 @@ private fun CommissionBreakdownRow(order: Order) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.outline
         )
+        if (breakdown.deliveryFee > 0) {
+            Text(
+                "Delivery fee: $" + "%.2f".format(breakdown.deliveryFee),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline
+            )
+        }
         Text(
             "Seller receives: $" + "%.2f".format(breakdown.sellerReceives),
             style = MaterialTheme.typography.bodyMedium

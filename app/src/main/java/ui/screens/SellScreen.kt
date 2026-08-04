@@ -11,7 +11,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dentalmarket.app.model.Condition
 import com.dentalmarket.app.model.DeviceCategory
 import com.dentalmarket.app.viewmodel.ListingViewModel
-import com.dentalmarket.app.viewmodel.calculateCommission
+import com.dentalmarket.app.viewmodel.calculatePayout
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
@@ -137,10 +137,16 @@ fun SellScreen(
         val commissionPercentage = viewModel.commissionPercentage.value
         val priceValue = viewModel.price.value.toDoubleOrNull()
         if (commissionPercentage != null && priceValue != null && priceValue > 0) {
-            val breakdown = calculateCommission(priceValue, commissionPercentage)
+            val deliveryFeeToSubtract = if (viewModel.deliveryMethod.value == "DENTALMARKET_DELIVERS") {
+                viewModel.deliveryFeeAmount.value ?: 0.0
+            } else {
+                0.0
+            }
+            val breakdown = calculatePayout(priceValue, commissionPercentage, deliveryFeeToSubtract)
             Text(
                 "You'll receive approximately $" + "%.2f".format(breakdown.sellerReceives) +
-                    " after our ${"%.1f".format(commissionPercentage)}% platform fee.",
+                    " after our ${"%.1f".format(commissionPercentage)}% platform fee" +
+                    if (deliveryFeeToSubtract > 0) " and $" + "%.2f".format(deliveryFeeToSubtract) + " delivery fee." else ".",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.outline
             )
@@ -161,7 +167,7 @@ fun SellScreen(
                 onClick = { viewModel.deliveryMethod.value = "DENTALMARKET_DELIVERS" }
             )
             Text(
-                "DentalMarket delivers (+$" + "%.2f".format(deliveryFeeAmount) + ")",
+                "DentalMarket delivers (fee deducted from your payout: $" + "%.2f".format(deliveryFeeAmount) + ")",
                 style = MaterialTheme.typography.bodyMedium
             )
         }
