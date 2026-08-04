@@ -26,6 +26,7 @@ import com.dentalmarket.app.ui.screens.AdminInquiriesScreen
 import com.dentalmarket.app.ui.screens.AdminOrdersScreen
 import com.dentalmarket.app.ui.screens.CartScreen
 import com.dentalmarket.app.ui.screens.CompleteProfileScreen
+import com.dentalmarket.app.ui.screens.ListingDetailScreen
 import com.dentalmarket.app.ui.screens.LoginScreen
 import com.dentalmarket.app.ui.screens.MarketplaceScreen
 import com.dentalmarket.app.ui.screens.MyListingsScreen
@@ -354,7 +355,22 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
             } else {
                 MyListingsScreen(
                     onBack = { navController.popBackStack() },
-                    onEditListing = { id -> navController.navigate("editListing/$id") }
+                    onEditListing = { id -> navController.navigate("editListing/$id") },
+                    onListingClick = { id -> navController.navigate("listingDetail/$id") }
+                )
+            }
+        }
+        composable(
+            "listingDetail/{listingId}",
+            arguments = listOf(navArgument("listingId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            if (authViewModel.isAnonymous) {
+                LaunchedEffect(Unit) { navController.popBackStack() }
+            } else {
+                val listingId = backStackEntry.arguments?.getString("listingId") ?: ""
+                ListingDetailScreen(
+                    listingId = listingId,
+                    onBack = { navController.popBackStack() }
                 )
             }
         }

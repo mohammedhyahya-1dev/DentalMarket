@@ -94,7 +94,8 @@ fun MyOrdersScreen(
                             canRate = order.status in RATABLE_STATUSES && order.id !in ratedOrderIds,
                             onRateClick = { orderToRate = order },
                             onClick = { onOrderClick(order) },
-                            onEnterPaymentReferenceClick = { orderForPayment = order }
+                            onEnterPaymentReferenceClick = { orderForPayment = order },
+                            onConfirmDeliveryClick = { viewModel.confirmDelivery(order) }
                         )
                     }
                 }
@@ -151,7 +152,8 @@ fun OrderCard(
     canRate: Boolean = false,
     onRateClick: (() -> Unit)? = null,
     onClick: (() -> Unit)? = null,
-    onEnterPaymentReferenceClick: (() -> Unit)? = null
+    onEnterPaymentReferenceClick: (() -> Unit)? = null,
+    onConfirmDeliveryClick: (() -> Unit)? = null
 ) {
     Card(
         shape = RoundedCornerShape(16.dp),
@@ -179,6 +181,16 @@ fun OrderCard(
                     color = MaterialTheme.colorScheme.error
                 )
             }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                "Delivery: " + if (order.deliveryMethod == "DENTALMARKET_DELIVERS") {
+                    "DentalMarket delivers ($" + "%.2f".format(order.deliveryFee) + ")"
+                } else {
+                    "Seller delivers"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline
+            )
             Spacer(modifier = Modifier.height(10.dp))
             OrderStatusTracker(order.status, compact = true)
             val canEnterReference = order.paymentStatus == "AWAITING_PAYMENT" || order.paymentStatus == "REJECTED"
@@ -186,6 +198,13 @@ fun OrderCard(
                 Spacer(modifier = Modifier.height(10.dp))
                 Button(onClick = onEnterPaymentReferenceClick, modifier = Modifier.fillMaxWidth()) {
                     Text(if (order.paymentStatus == "REJECTED") "Resubmit Payment Reference" else "Enter Payment Reference")
+                }
+            }
+            val canConfirmDelivery = order.status == "PICKED_UP" && order.deliveryMethod == "SELLER_DELIVERS"
+            if (canConfirmDelivery && onConfirmDeliveryClick != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Button(onClick = onConfirmDeliveryClick, modifier = Modifier.fillMaxWidth()) {
+                    Text("I received this")
                 }
             }
             if (canRate && onRateClick != null) {
@@ -290,7 +309,7 @@ private fun PaymentReferenceDialog(
     onSubmit: (reference: String) -> Unit
 ) {
     var reference by remember { mutableStateOf("") }
-    val amountDue = order.price * order.quantity
+    val amountDue = order.price * order.quantity + order.deliveryFee
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -301,6 +320,14 @@ private fun PaymentReferenceDialog(
                     "Pay $" + "%.2f".format(amountDue) + " via QiCard or ZainCash to:",
                     style = MaterialTheme.typography.bodyMedium
                 )
+                if (order.deliveryFee > 0) {
+                    Text(
+                        "(Item: $" + "%.2f".format(order.price * order.quantity) +
+                            " + Delivery: $" + "%.2f".format(order.deliveryFee) + ")",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 when {
                     paymentConfigLoadFailed -> Text(

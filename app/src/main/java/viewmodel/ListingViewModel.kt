@@ -5,6 +5,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dentalmarket.app.data.AuthRepository
+import com.dentalmarket.app.data.CommissionConfigRepository
+import com.dentalmarket.app.data.DeliveryConfigRepository
 import com.dentalmarket.app.data.ListingRepository
 import com.dentalmarket.app.model.Listing
 import com.google.firebase.auth.FirebaseAuth
@@ -18,6 +20,33 @@ data class SpecRow(
 class ListingViewModel : ViewModel() {
     private val repository = ListingRepository()
     private val authRepository = AuthRepository()
+    private val commissionConfigRepository = CommissionConfigRepository()
+    private val deliveryConfigRepository = DeliveryConfigRepository()
+
+    // Live current rate, fetched once when the screen opens — purely for the
+    // pre-sale "you'll receive approximately..." estimate below the price
+    // field. Unrelated to Order.commissionPercentage, which locks in the
+    // rate at checkout time instead.
+    var commissionPercentage = mutableStateOf<Double?>(null)
+
+    fun loadCommissionConfig() {
+        viewModelScope.launch {
+            commissionConfigRepository.getCommissionConfig()
+                .onSuccess { commissionPercentage.value = it.percentage }
+        }
+    }
+
+    // Live current fee, fetched once when the screen opens — purely so the
+    // "DentalMarket delivers" choice label shows a real number. The listing
+    // itself only stores the yes/no (deliveryMethod below), not this amount.
+    var deliveryFeeAmount = mutableStateOf<Double?>(null)
+
+    fun loadDeliveryConfig() {
+        viewModelScope.launch {
+            deliveryConfigRepository.getDeliveryConfig()
+                .onSuccess { deliveryFeeAmount.value = it.feeAmount }
+        }
+    }
 
     var name = mutableStateOf("")
     var category = mutableStateOf("")
@@ -25,6 +54,7 @@ class ListingViewModel : ViewModel() {
     var price = mutableStateOf("")
     var description = mutableStateOf("")
     var emoji = mutableStateOf("🦷")
+    var deliveryMethod = mutableStateOf("SELLER_DELIVERS")
 
     // Dynamic key/value spec rows the seller builds (e.g. "Brand" -> "Sirona").
     // Kept as a mutable list of individually-observable rows so typing in one
@@ -64,6 +94,7 @@ class ListingViewModel : ViewModel() {
                     price.value = listing.price.toString()
                     description.value = listing.description
                     emoji.value = listing.emoji
+                    deliveryMethod.value = listing.deliveryMethod
                     editingSellerId = listing.sellerId
                     editingSellerName = listing.sellerName
                     editingStatus = listing.status
@@ -106,7 +137,8 @@ class ListingViewModel : ViewModel() {
                     description = description.value,
                     emoji = emoji.value,
                     status = editingStatus,
-                    specifics = specifics.associate { it.key.value.trim() to it.value.value.trim() }.filterKeys { it.isNotBlank() }
+                    specifics = specifics.associate { it.key.value.trim() to it.value.value.trim() }.filterKeys { it.isNotBlank() },
+                    deliveryMethod = deliveryMethod.value
                 )
                 val result = repository.updateListing(editingId, listing)
                 isLoading.value = false
@@ -125,7 +157,8 @@ class ListingViewModel : ViewModel() {
                     price = priceValue,
                     description = description.value,
                     emoji = emoji.value,
-                    specifics = specifics.associate { it.key.value.trim() to it.value.value.trim() }.filterKeys { it.isNotBlank() }
+                    specifics = specifics.associate { it.key.value.trim() to it.value.value.trim() }.filterKeys { it.isNotBlank() },
+                    deliveryMethod = deliveryMethod.value
                 )
                 val result = repository.addListing(listing)
                 isLoading.value = false

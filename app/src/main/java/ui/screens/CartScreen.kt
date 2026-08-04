@@ -24,6 +24,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -52,6 +53,11 @@ fun CartScreen(
     val authRepository = remember { AuthRepository() }
     val isGuest = authRepository.isAnonymous
     var showGuestPrompt by remember { mutableStateOf(false) }
+    val deliveryFeeAmount = cartViewModel.deliveryFeeAmount.value ?: 0.0
+
+    LaunchedEffect(Unit) {
+        cartViewModel.loadDeliveryConfig()
+    }
 
     Scaffold(
         topBar = {
@@ -80,20 +86,26 @@ fun CartScreen(
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
                     }
+                    val itemTotal = cartItems.sumOf { it.listing.price * it.quantity }
+                    val deliveryTotal = cartItems
+                        .filter { it.listing.deliveryMethod == "DENTALMARKET_DELIVERS" }
+                        .sumOf { deliveryFeeAmount }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "Total: $" + "%.2f".format(cartItems.sumOf { it.listing.price * it.quantity }),
+                            "Total: $" + "%.2f".format(itemTotal + deliveryTotal),
                             style = MaterialTheme.typography.titleLarge,
                             color = WarmAmber
                         )
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Button(
-                        onClick = { if (isGuest) showGuestPrompt = true else cartViewModel.checkout() },
+                        onClick = {
+                            if (isGuest) showGuestPrompt = true else cartViewModel.checkout()
+                        },
                         enabled = !isPlacingOrder,
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -132,7 +144,8 @@ fun CartScreen(
                                 item = item,
                                 onIncrease = { cartViewModel.updateQuantity(item.listing.id, item.quantity + 1) },
                                 onDecrease = { cartViewModel.updateQuantity(item.listing.id, item.quantity - 1) },
-                                onRemove = { cartViewModel.removeFromCart(item.listing.id) }
+                                onRemove = { cartViewModel.removeFromCart(item.listing.id) },
+                                deliveryFeeAmount = deliveryFeeAmount
                             )
                             HorizontalDivider()
                         }

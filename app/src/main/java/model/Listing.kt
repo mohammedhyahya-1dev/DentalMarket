@@ -11,5 +11,11 @@ data class Listing(
     val description: String = "",
     val emoji: String = "🦷",
     val status: String = "AVAILABLE",
-    val specifics: Map<String, String> = emptyMap()
+    val specifics: Map<String, String> = emptyMap(),
+    // Seller's own choice of who delivers — "SELLER_DELIVERS" or
+    // "DENTALMARKET_DELIVERS". The fee amount itself stays a single
+    // platform-wide knob (config/delivery), not stored here; this field is
+    // only the seller's yes/no. Read at checkout time and locked onto each
+    // Order independently, same as everything else in that pipeline.
+    val deliveryMethod: String = "SELLER_DELIVERS"
 )

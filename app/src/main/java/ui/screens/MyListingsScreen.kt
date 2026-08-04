@@ -1,6 +1,7 @@
 package com.dentalmarket.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -23,14 +24,17 @@ import com.dentalmarket.app.viewmodel.MyListingsViewModel
 fun MyListingsScreen(
     onBack: () -> Unit,
     onEditListing: (String) -> Unit,
+    onListingClick: (String) -> Unit = {},
     viewModel: MyListingsViewModel = viewModel()
 ) {
     val listings = viewModel.listings.value
     val isLoading = viewModel.isLoading.value
+    val deliveryFeeAmount = viewModel.deliveryFeeAmount.value ?: 0.0
     var listingPendingDelete by remember { mutableStateOf<Listing?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.loadMyListings()
+        viewModel.loadDeliveryConfig()
     }
 
     Scaffold(
@@ -63,6 +67,8 @@ fun MyListingsScreen(
                     items(listings, key = { it.id }) { listing ->
                         MyListingCard(
                             listing = listing,
+                            deliveryFeeAmount = deliveryFeeAmount,
+                            onClick = { onListingClick(listing.id) },
                             onEdit = { onEditListing(listing.id) },
                             onDelete = { listingPendingDelete = listing }
                         )
@@ -91,10 +97,19 @@ fun MyListingsScreen(
 }
 
 @Composable
-fun MyListingCard(listing: Listing, onEdit: () -> Unit, onDelete: () -> Unit) {
+fun MyListingCard(
+    listing: Listing,
+    deliveryFeeAmount: Double = 0.0,
+    onClick: (() -> Unit)? = null,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
     val isSold = listing.status == "SOLD"
 
-    Card(shape = RoundedCornerShape(16.dp)) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        modifier = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
+    ) {
         Column(modifier = Modifier.padding(14.dp).fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(listing.emoji, fontSize = 28.sp)
@@ -118,6 +133,16 @@ fun MyListingCard(listing: Listing, onEdit: () -> Unit, onDelete: () -> Unit) {
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                 )
             }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                if (listing.deliveryMethod == "DENTALMARKET_DELIVERS") {
+                    "Delivery: DentalMarket delivers (+$" + "%.2f".format(deliveryFeeAmount) + ")"
+                } else {
+                    "Delivery: Seller delivers"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline
+            )
             if (!isSold) {
                 Spacer(modifier = Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {

@@ -109,4 +109,21 @@ class OrderRepository {
             Result.failure(e)
         }
     }
+
+    // The buyer's own confirmation that a SELLER_DELIVERS order arrived —
+    // never callable by the seller. See firestore.rules for the matching
+    // buyer-only update exception.
+    suspend fun confirmDelivery(orderId: String): Result<Unit> {
+        return try {
+            ordersCollection.document(orderId).update(
+                mapOf(
+                    "status" to "DELIVERED",
+                    "deliveryConfirmedAt" to System.currentTimeMillis()
+                )
+            ).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

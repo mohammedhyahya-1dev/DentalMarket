@@ -60,10 +60,22 @@ class OrderViewModel : ViewModel() {
     // return null, but the check is repeated here too, same defense-in-depth
     // as everywhere else in this app.
     fun advanceStatus(order: Order) {
-        val next = nextOrderStatus(order.status, order.paymentStatus) ?: return
+        val next = nextOrderStatus(order.status, order.paymentStatus, order.deliveryMethod) ?: return
         viewModelScope.launch {
             repository.updateOrderStatus(order.id, next)
             loadAllOrders()
+        }
+    }
+
+    // The buyer's own delivery confirmation for SELLER_DELIVERS orders —
+    // refreshes the buyer's list, mirroring submitPaymentReference() below.
+    fun confirmDelivery(order: Order, onSuccess: () -> Unit = {}) {
+        viewModelScope.launch {
+            repository.confirmDelivery(order.id)
+                .onSuccess {
+                    loadMyOrders()
+                    onSuccess()
+                }
         }
     }
 
@@ -99,12 +111,34 @@ class OrderViewModel : ViewModel() {
 // Pure decision function for the fulfillment pipeline, kept free of any
 // Firebase/ViewModel dependency so it's directly unit-testable. Returns null
 // when there's no next step (terminal status) or the step is blocked
-// (PLACED -> PICKED_UP requires a verified payment).
-fun nextOrderStatus(currentStatus: String, paymentStatus: String): String? {
+// (PLACED -> PICKED_UP requires a verified payment; PICKED_UP -> DELIVERED
+// is blocked for the admin/advance-button path when the buyer chose
+// SELLER_DELIVERS, since that transition can only come from the buyer's own
+// confirmDelivery() action instead).
+fun nextOrderStatus(currentStatus: String, paymentStatus: String, deliveryMethod: String): String? {
     return when (currentStatus) {
         "PLACED" -> if (paymentStatus == "VERIFIED") "PICKED_UP" else null
-        "PICKED_UP" -> "DELIVERED"
+        "PICKED_UP" -> if (deliveryMethod == "DENTALMARKET_DELIVERS") "DELIVERED" else null
         "DELIVERED" -> "PAID_TO_SELLER"
         else -> null
     }
+}
+
+data class CommissionBreakdown(
+    val itemTotal: Double,
+    val commissionAmount: Double,
+    val sellerReceives: Double
+)
+
+// Pure calculation, free of any Firebase/ViewModel dependency, same reasoning
+// as nextOrderStatus() above. Used both for the locked-in per-order figures
+// (Order.commissionPercentage) and for live pre-sale estimates (Sell screen,
+// listing detail) against the current config/commission percentage.
+fun calculateCommission(itemTotal: Double, commissionPercentage: Double): CommissionBreakdown {
+    val commissionAmount = itemTotal * (commissionPercentage / 100.0)
+    return CommissionBreakdown(
+        itemTotal = itemTotal,
+        commissionAmount = commissionAmount,
+        sellerReceives = itemTotal - commissionAmount
+    )
 }

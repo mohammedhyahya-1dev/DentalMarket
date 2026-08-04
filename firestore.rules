@@ -75,13 +75,22 @@ service cloud.firestore {
       // verify/reject). A buyer who isn't admin can only submit their own
       // payment reference — moving AWAITING_PAYMENT or REJECTED to
       // PENDING_VERIFICATION — and only those three fields; they can never
-      // set paymentStatus to VERIFIED themselves.
+      // set paymentStatus to VERIFIED themselves. A buyer can also confirm
+      // their own SELLER_DELIVERS order arrived — moving PICKED_UP to
+      // DELIVERED — but never for a DENTALMARKET_DELIVERS order, where only
+      // admin (as courier) can advance that step.
       allow update: if isAdmin() ||
         (isSignedIn() && resource.data.buyerId == request.auth.uid &&
          resource.data.paymentStatus in ['AWAITING_PAYMENT', 'REJECTED'] &&
          request.resource.data.paymentStatus == 'PENDING_VERIFICATION' &&
          request.resource.data.diff(resource.data).affectedKeys()
-           .hasOnly(['paymentReference', 'paymentStatus', 'paymentSubmittedAt']));
+           .hasOnly(['paymentReference', 'paymentStatus', 'paymentSubmittedAt'])) ||
+        (isSignedIn() && resource.data.buyerId == request.auth.uid &&
+         resource.data.deliveryMethod == 'SELLER_DELIVERS' &&
+         resource.data.status == 'PICKED_UP' &&
+         request.resource.data.status == 'DELIVERED' &&
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['status', 'deliveryConfirmedAt']));
       allow delete: if false;
     }
 

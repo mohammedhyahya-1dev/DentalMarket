@@ -23,7 +23,25 @@ data class Order(
     val paymentReference: String = "",
     val paymentRejectionReason: String = "",
     val paymentSubmittedAt: Long = 0,
-    val paymentVerifiedAt: Long = 0
+    val paymentVerifiedAt: Long = 0,
+    // The platform commission rate in effect when this order was placed,
+    // captured once at checkout so a later change to config/commission
+    // never retroactively changes what an already-placed (or already paid
+    // out) order shows was owed to the seller.
+    val commissionPercentage: Double = 0.0,
+    // "SELLER_DELIVERS" or "DENTALMARKET_DELIVERS", chosen by the buyer at
+    // checkout. Determines who is allowed to confirm the PICKED_UP ->
+    // DELIVERED step: the buyer themselves for SELLER_DELIVERS (nextOrderStatus
+    // blocks the admin path for that transition), or admin-as-courier for
+    // DENTALMARKET_DELIVERS, same as every other stage.
+    val deliveryMethod: String = "SELLER_DELIVERS",
+    // Locked in at checkout from config/delivery, same reasoning as
+    // commissionPercentage above — 0 for SELLER_DELIVERS.
+    val deliveryFee: Double = 0.0,
+    // Set when the buyer taps "I received this". Unused today beyond being
+    // a record, but it's the hook a future auto-release-after-waiting-period
+    // job would read from without another schema change.
+    val deliveryConfirmedAt: Long = 0
 )
 
 enum class OrderStatus(val label: String) {
@@ -32,6 +50,11 @@ enum class OrderStatus(val label: String) {
     DELIVERED("Delivered to Buyer"),
     PAID_TO_SELLER("Paid to Seller"),
     CANCELLED("Cancelled")
+}
+
+enum class DeliveryMethod(val label: String) {
+    SELLER_DELIVERS("Seller delivers"),
+    DENTALMARKET_DELIVERS("DentalMarket delivers")
 }
 
 enum class PaymentStatus(val label: String) {

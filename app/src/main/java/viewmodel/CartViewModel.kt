@@ -4,6 +4,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dentalmarket.app.data.AuthRepository
+import com.dentalmarket.app.data.CommissionConfigRepository
+import com.dentalmarket.app.data.DeliveryConfigRepository
 import com.dentalmarket.app.data.ListingRepository
 import com.dentalmarket.app.data.OrderRepository
 import com.dentalmarket.app.model.CartItem
@@ -22,10 +24,25 @@ class CartViewModel : ViewModel() {
     private val orderRepository = OrderRepository()
     private val listingRepository = ListingRepository()
     private val authRepository = AuthRepository()
+    private val commissionConfigRepository = CommissionConfigRepository()
+    private val deliveryConfigRepository = DeliveryConfigRepository()
 
     var isPlacingOrder = mutableStateOf(false)
     var orderPlacedSuccess = mutableStateOf(false)
     var orderErrorMessage = mutableStateOf<String?>(null)
+
+    // Live current fee, fetched once when the cart screen opens — purely so
+    // the "DentalMarket delivers (+$X)" choice label shows a real number.
+    // The value actually locked onto each Order is resolved fresh inside
+    // checkout() below, not read from this cached copy.
+    var deliveryFeeAmount = mutableStateOf<Double?>(null)
+
+    fun loadDeliveryConfig() {
+        viewModelScope.launch {
+            deliveryConfigRepository.getDeliveryConfig()
+                .onSuccess { deliveryFeeAmount.value = it.feeAmount }
+        }
+    }
 
     fun addToCart(listing: Listing, quantity: Int = 1) {
         _cartItems.update { current ->
@@ -66,6 +83,11 @@ class CartViewModel : ViewModel() {
 
     // Places one Order per cart item (cash-on-delivery), marks each listing
     // as sold so it disappears from the marketplace, then empties the cart.
+    // Delivery method is the seller's own choice, set on the listing at
+    // posting time — read per item here, not decided by the buyer at
+    // checkout. The fee amount itself is still the single platform-wide
+    // config/delivery figure, resolved once per checkout and applied to
+    // whichever items need it.
     fun checkout() {
         val buyerId = authRepository.currentUserId
         if (buyerId == null) {
@@ -81,9 +103,18 @@ class CartViewModel : ViewModel() {
         viewModelScope.launch {
             val profileResult = authRepository.getCurrentUserProfile()
             val buyerName = profileResult.getOrNull()?.name ?: "Unknown Buyer"
+            val commissionPercentage = commissionConfigRepository.getCommissionConfig()
+                .getOrNull()?.percentage ?: 0.0
+            val configuredDeliveryFee = deliveryConfigRepository.getDeliveryConfig()
+                .getOrNull()?.feeAmount ?: 0.0
 
             var allSucceeded = true
             for (item in items) {
+                val deliveryFee = if (item.listing.deliveryMethod == "DENTALMARKET_DELIVERS") {
+                    configuredDeliveryFee
+                } else {
+                    0.0
+                }
                 val order = Order(
                     listingId = item.listing.id,
                     listingName = item.listing.name,
@@ -93,7 +124,10 @@ class CartViewModel : ViewModel() {
                     buyerId = buyerId,
                     buyerName = buyerName,
                     sellerId = item.listing.sellerId,
-                    sellerName = item.listing.sellerName
+                    sellerName = item.listing.sellerName,
+                    commissionPercentage = commissionPercentage,
+                    deliveryMethod = item.listing.deliveryMethod,
+                    deliveryFee = deliveryFee
                 )
                 val orderResult = orderRepository.placeOrder(order)
                 if (orderResult.isFailure) {

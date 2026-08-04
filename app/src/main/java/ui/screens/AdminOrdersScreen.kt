@@ -16,6 +16,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dentalmarket.app.model.Order
 import com.dentalmarket.app.ui.components.PaymentStatusBadge
 import com.dentalmarket.app.viewmodel.OrderViewModel
+import com.dentalmarket.app.viewmodel.calculateCommission
 import com.dentalmarket.app.viewmodel.nextOrderStatus
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -110,6 +111,12 @@ fun AdminOrderCard(
                 PaymentStatusBadge(order.paymentStatus)
             }
 
+            Spacer(modifier = Modifier.height(8.dp))
+            CommissionBreakdownRow(order)
+
+            Spacer(modifier = Modifier.height(8.dp))
+            DeliveryInfoRow(order)
+
             if (order.paymentStatus == "PENDING_VERIFICATION") {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
@@ -140,13 +147,55 @@ fun AdminOrderCard(
                 )
             }
 
-            if (nextOrderStatus(order.status, order.paymentStatus) != null) {
+            if (nextOrderStatus(order.status, order.paymentStatus, order.deliveryMethod) != null) {
                 Spacer(modifier = Modifier.height(10.dp))
                 Button(onClick = onAdvance, modifier = Modifier.fillMaxWidth()) {
                     Text("Advance to Next Stage")
                 }
+            } else if (order.status == "PICKED_UP" && order.deliveryMethod == "SELLER_DELIVERS") {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "Waiting for buyer to confirm receipt",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun DeliveryInfoRow(order: Order) {
+    val methodLabel = if (order.deliveryMethod == "DENTALMARKET_DELIVERS") {
+        "DentalMarket delivers (fee: $" + "%.2f".format(order.deliveryFee) + ")"
+    } else {
+        "Seller delivers"
+    }
+    Text(
+        "Delivery: $methodLabel",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.outline
+    )
+}
+
+// The manual-payout reference: this app has no automated payment API, so
+// this is purely a calculated display telling the admin what to actually
+// send the seller — nothing here transfers money.
+@Composable
+private fun CommissionBreakdownRow(order: Order) {
+    val breakdown = calculateCommission(order.price * order.quantity, order.commissionPercentage)
+    Column {
+        Text(
+            "Item total: $" + "%.2f".format(breakdown.itemTotal) +
+                "  •  Platform fee (${"%.1f".format(order.commissionPercentage)}%): $" +
+                "%.2f".format(breakdown.commissionAmount),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.outline
+        )
+        Text(
+            "Seller receives: $" + "%.2f".format(breakdown.sellerReceives),
+            style = MaterialTheme.typography.bodyMedium
+        )
     }
 }
 

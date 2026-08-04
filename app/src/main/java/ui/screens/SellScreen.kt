@@ -11,10 +11,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dentalmarket.app.model.Condition
 import com.dentalmarket.app.model.DeviceCategory
 import com.dentalmarket.app.viewmodel.ListingViewModel
+import com.dentalmarket.app.viewmodel.calculateCommission
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.RadioButton
 import com.dentalmarket.app.viewmodel.SpecRow
 import androidx.compose.ui.Alignment
 
@@ -33,6 +35,11 @@ fun SellScreen(
         if (listingId != null) {
             viewModel.loadListingForEdit(listingId)
         }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.loadCommissionConfig()
+        viewModel.loadDeliveryConfig()
     }
 
     LaunchedEffect(viewModel.postSuccess.value) {
@@ -118,6 +125,38 @@ fun SellScreen(
             label = { Text("Price ($)") },
             modifier = Modifier.fillMaxWidth()
         )
+
+        val commissionPercentage = viewModel.commissionPercentage.value
+        val priceValue = viewModel.price.value.toDoubleOrNull()
+        if (commissionPercentage != null && priceValue != null && priceValue > 0) {
+            val breakdown = calculateCommission(priceValue, commissionPercentage)
+            Text(
+                "You'll receive approximately $" + "%.2f".format(breakdown.sellerReceives) +
+                    " after our ${"%.1f".format(commissionPercentage)}% platform fee.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline
+            )
+        }
+
+        Text("Delivery", style = MaterialTheme.typography.titleMedium)
+        val deliveryFeeAmount = viewModel.deliveryFeeAmount.value ?: 0.0
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(
+                selected = viewModel.deliveryMethod.value == "SELLER_DELIVERS",
+                onClick = { viewModel.deliveryMethod.value = "SELLER_DELIVERS" }
+            )
+            Text("I'll deliver it myself", style = MaterialTheme.typography.bodyMedium)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(
+                selected = viewModel.deliveryMethod.value == "DENTALMARKET_DELIVERS",
+                onClick = { viewModel.deliveryMethod.value = "DENTALMARKET_DELIVERS" }
+            )
+            Text(
+                "DentalMarket delivers (+$" + "%.2f".format(deliveryFeeAmount) + ")",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
 
         Text("Specifications (optional)", style = MaterialTheme.typography.titleMedium)
 

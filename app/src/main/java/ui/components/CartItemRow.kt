@@ -26,7 +26,8 @@ fun CartItemRow(
     onIncrease: () -> Unit,
     onDecrease: () -> Unit,
     onRemove: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    deliveryFeeAmount: Double = 0.0
 ) {
     Row(
         modifier = modifier
@@ -41,6 +42,15 @@ fun CartItemRow(
             Text(
                 "$" + "%.2f".format(item.listing.price) + " each",
                 style = MaterialTheme.typography.bodyMedium
+            )
+            Text(
+                if (item.listing.deliveryMethod == "DENTALMARKET_DELIVERS") {
+                    "DentalMarket delivers (+$" + "%.2f".format(deliveryFeeAmount) + ")"
+                } else {
+                    "Seller delivers"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline
             )
         }
         IconButton(onClick = onDecrease) {

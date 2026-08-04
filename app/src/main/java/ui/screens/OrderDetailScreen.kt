@@ -77,6 +77,16 @@ fun OrderDetailScreen(
             Spacer(modifier = Modifier.height(12.dp))
             Text("Buyer", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.outline)
             Text(currentOrder.buyerName, style = MaterialTheme.typography.bodyLarge)
+            Spacer(modifier = Modifier.height(12.dp))
+            Text("Delivery", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.outline)
+            Text(
+                if (currentOrder.deliveryMethod == "DENTALMARKET_DELIVERS") {
+                    "DentalMarket delivers ($" + "%.2f".format(currentOrder.deliveryFee) + ")"
+                } else {
+                    "Seller delivers"
+                },
+                style = MaterialTheme.typography.bodyLarge
+            )
         }
     }
 }
