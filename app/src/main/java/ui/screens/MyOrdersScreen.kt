@@ -191,6 +191,11 @@ fun OrderCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.outline
             )
+            Text(
+                "Safety fee: $" + "%.2f".format(order.safetyFee),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline
+            )
             Spacer(modifier = Modifier.height(10.dp))
             OrderStatusTracker(order.status, compact = true)
             val canEnterReference = order.paymentStatus == "AWAITING_PAYMENT" || order.paymentStatus == "REJECTED"
@@ -309,7 +314,7 @@ private fun PaymentReferenceDialog(
     onSubmit: (reference: String) -> Unit
 ) {
     var reference by remember { mutableStateOf("") }
-    val amountDue = order.price * order.quantity + order.deliveryFee
+    val amountDue = order.price * order.quantity + order.deliveryFee + order.safetyFee
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -320,10 +325,12 @@ private fun PaymentReferenceDialog(
                     "Pay $" + "%.2f".format(amountDue) + " via QiCard or ZainCash to:",
                     style = MaterialTheme.typography.bodyMedium
                 )
-                if (order.deliveryFee > 0) {
+                if (order.deliveryFee > 0 || order.safetyFee > 0) {
+                    val parts = mutableListOf("Item: $" + "%.2f".format(order.price * order.quantity))
+                    if (order.deliveryFee > 0) parts.add("Delivery: $" + "%.2f".format(order.deliveryFee))
+                    if (order.safetyFee > 0) parts.add("Safety fee: $" + "%.2f".format(order.safetyFee))
                     Text(
-                        "(Item: $" + "%.2f".format(order.price * order.quantity) +
-                            " + Delivery: $" + "%.2f".format(order.deliveryFee) + ")",
+                        "(" + parts.joinToString(" + ") + ")",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.outline
                     )

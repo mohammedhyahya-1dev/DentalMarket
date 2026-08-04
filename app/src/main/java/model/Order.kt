@@ -41,7 +41,13 @@ data class Order(
     // Set when the buyer taps "I received this". Unused today beyond being
     // a record, but it's the hook a future auto-release-after-waiting-period
     // job would read from without another schema change.
-    val deliveryConfirmedAt: Long = 0
+    val deliveryConfirmedAt: Long = 0,
+    // Locked in at checkout from config/safetyFee (feeAmount * quantity),
+    // same reasoning as commissionPercentage/deliveryFee above — a later
+    // change to the configured fee shouldn't retroactively change what an
+    // already-placed order shows the buyer was charged. Paid by the buyer,
+    // never reaches the seller.
+    val safetyFee: Double = 0.0
 )
 
 enum class OrderStatus(val label: String) {

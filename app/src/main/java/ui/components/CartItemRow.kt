@@ -27,7 +27,8 @@ fun CartItemRow(
     onDecrease: () -> Unit,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
-    deliveryFeeAmount: Double = 0.0
+    deliveryFeeAmount: Double = 0.0,
+    safetyFeeAmount: Double = 0.0
 ) {
     Row(
         modifier = modifier
@@ -49,6 +50,11 @@ fun CartItemRow(
                 } else {
                     "Seller delivers"
                 },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline
+            )
+            Text(
+                "Safety fee: $" + "%.2f".format(safetyFeeAmount * item.quantity),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.outline
             )

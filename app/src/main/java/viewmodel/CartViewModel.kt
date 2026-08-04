@@ -8,6 +8,7 @@ import com.dentalmarket.app.data.CommissionConfigRepository
 import com.dentalmarket.app.data.DeliveryConfigRepository
 import com.dentalmarket.app.data.ListingRepository
 import com.dentalmarket.app.data.OrderRepository
+import com.dentalmarket.app.data.SafetyFeeConfigRepository
 import com.dentalmarket.app.model.CartItem
 import com.dentalmarket.app.model.Listing
 import com.dentalmarket.app.model.Order
@@ -26,6 +27,7 @@ class CartViewModel : ViewModel() {
     private val authRepository = AuthRepository()
     private val commissionConfigRepository = CommissionConfigRepository()
     private val deliveryConfigRepository = DeliveryConfigRepository()
+    private val safetyFeeConfigRepository = SafetyFeeConfigRepository()
 
     var isPlacingOrder = mutableStateOf(false)
     var orderPlacedSuccess = mutableStateOf(false)
@@ -41,6 +43,19 @@ class CartViewModel : ViewModel() {
         viewModelScope.launch {
             deliveryConfigRepository.getDeliveryConfig()
                 .onSuccess { deliveryFeeAmount.value = it.feeAmount }
+        }
+    }
+
+    // Live current per-unit fee, fetched once when the cart screen opens —
+    // purely so each CartItemRow can show a real "Safety fee: $X" number.
+    // The value actually locked onto each Order is resolved fresh inside
+    // checkout() below, not read from this cached copy.
+    var safetyFeeAmount = mutableStateOf<Double?>(null)
+
+    fun loadSafetyFeeConfig() {
+        viewModelScope.launch {
+            safetyFeeConfigRepository.getSafetyFeeConfig()
+                .onSuccess { safetyFeeAmount.value = it.feeAmount }
         }
     }
 
@@ -107,6 +122,8 @@ class CartViewModel : ViewModel() {
                 .getOrNull()?.percentage ?: 0.0
             val configuredDeliveryFee = deliveryConfigRepository.getDeliveryConfig()
                 .getOrNull()?.feeAmount ?: 0.0
+            val configuredSafetyFee = safetyFeeConfigRepository.getSafetyFeeConfig()
+                .getOrNull()?.feeAmount ?: 0.0
 
             var allSucceeded = true
             for (item in items) {
@@ -127,7 +144,8 @@ class CartViewModel : ViewModel() {
                     sellerName = item.listing.sellerName,
                     commissionPercentage = commissionPercentage,
                     deliveryMethod = item.listing.deliveryMethod,
-                    deliveryFee = deliveryFee
+                    deliveryFee = deliveryFee,
+                    safetyFee = configuredSafetyFee * item.quantity
                 )
                 val orderResult = orderRepository.placeOrder(order)
                 if (orderResult.isFailure) {

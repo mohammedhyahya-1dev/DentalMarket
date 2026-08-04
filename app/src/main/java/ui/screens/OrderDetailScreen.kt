@@ -87,6 +87,12 @@ fun OrderDetailScreen(
                 },
                 style = MaterialTheme.typography.bodyLarge
             )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text("Safety Fee", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.outline)
+            Text(
+                "$" + "%.2f".format(currentOrder.safetyFee),
+                style = MaterialTheme.typography.bodyLarge
+            )
         }
     }
 }

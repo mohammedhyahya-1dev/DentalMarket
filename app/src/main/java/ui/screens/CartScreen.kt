@@ -54,9 +54,11 @@ fun CartScreen(
     val isGuest = authRepository.isAnonymous
     var showGuestPrompt by remember { mutableStateOf(false) }
     val deliveryFeeAmount = cartViewModel.deliveryFeeAmount.value ?: 0.0
+    val safetyFeeAmount = cartViewModel.safetyFeeAmount.value ?: 0.0
 
     LaunchedEffect(Unit) {
         cartViewModel.loadDeliveryConfig()
+        cartViewModel.loadSafetyFeeConfig()
     }
 
     Scaffold(
@@ -90,13 +92,14 @@ fun CartScreen(
                     val deliveryTotal = cartItems
                         .filter { it.listing.deliveryMethod == "DENTALMARKET_DELIVERS" }
                         .sumOf { deliveryFeeAmount }
+                    val safetyFeeTotal = cartItems.sumOf { safetyFeeAmount * it.quantity }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "Total: $" + "%.2f".format(itemTotal + deliveryTotal),
+                            "Total: $" + "%.2f".format(itemTotal + deliveryTotal + safetyFeeTotal),
                             style = MaterialTheme.typography.titleLarge,
                             color = WarmAmber
                         )
@@ -145,7 +148,8 @@ fun CartScreen(
                                 onIncrease = { cartViewModel.updateQuantity(item.listing.id, item.quantity + 1) },
                                 onDecrease = { cartViewModel.updateQuantity(item.listing.id, item.quantity - 1) },
                                 onRemove = { cartViewModel.removeFromCart(item.listing.id) },
-                                deliveryFeeAmount = deliveryFeeAmount
+                                deliveryFeeAmount = deliveryFeeAmount,
+                                safetyFeeAmount = safetyFeeAmount
                             )
                             HorizontalDivider()
                         }

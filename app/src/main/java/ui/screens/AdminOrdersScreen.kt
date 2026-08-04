@@ -117,6 +117,9 @@ fun AdminOrderCard(
             Spacer(modifier = Modifier.height(8.dp))
             DeliveryInfoRow(order)
 
+            Spacer(modifier = Modifier.height(8.dp))
+            SafetyFeeRow(order)
+
             if (order.paymentStatus == "PENDING_VERIFICATION") {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
@@ -173,6 +176,18 @@ private fun DeliveryInfoRow(order: Order) {
     }
     Text(
         "Delivery: $methodLabel",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.outline
+    )
+}
+
+// Reconciliation visibility only — this fee is buyer-paid and never reaches
+// the seller, so it deliberately has no part in CommissionBreakdownRow or
+// the seller-payout math above.
+@Composable
+private fun SafetyFeeRow(order: Order) {
+    Text(
+        "Safety fee collected: $" + "%.2f".format(order.safetyFee),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.outline
     )
