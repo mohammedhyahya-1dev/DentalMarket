@@ -126,6 +126,14 @@ fun SellScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
+        OutlinedTextField(
+            value = viewModel.description.value,
+            onValueChange = { viewModel.description.value = it },
+            label = { Text("Description (optional)") },
+            minLines = 3,
+            modifier = Modifier.fillMaxWidth()
+        )
+
         val commissionPercentage = viewModel.commissionPercentage.value
         val priceValue = viewModel.price.value.toDoubleOrNull()
         if (commissionPercentage != null && priceValue != null && priceValue > 0) {
