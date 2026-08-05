@@ -126,6 +126,23 @@ service cloud.firestore {
       allow update: if false;
     }
 
+    // sellerNotifications/{id}: in-app "here's who to deliver to" handoff,
+    // created only by the verify-payment path (see OrderViewModel.verifyPayment)
+    // for SELLER_DELIVERS orders. Carries the same buyer address/phone as
+    // orders/{id}.deliveryAddress, so it gets the same care: only the
+    // intended seller (recipientId) or admin can ever read one — never the
+    // buyer, never another seller.
+    match /sellerNotifications/{id} {
+      allow create: if isAdmin();
+      allow get, list: if isSignedIn() &&
+        (resource.data.recipientId == request.auth.uid || isAdmin());
+      // The recipient can only flip their own notification to read — never
+      // any other field, never someone else's notification.
+      allow update: if isSignedIn() && resource.data.recipientId == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow delete: if false;
+    }
+
     // ratings/{orderId}: one rating per completed order, keyed by the orderId
     // itself (matches RatingRepository.submitRating). Reads are open to any
     // signed-in user since seller ratings are public browsing info, same as

@@ -5,12 +5,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dentalmarket.app.data.AuthRepository
 import com.dentalmarket.app.data.OrderRepository
+import com.dentalmarket.app.data.SellerNotificationRepository
 import com.dentalmarket.app.model.Order
 import kotlinx.coroutines.launch
 
 class OrderViewModel : ViewModel() {
     private val repository = OrderRepository()
     private val authRepository = AuthRepository()
+    private val notificationRepository = SellerNotificationRepository()
 
     var orders = mutableStateOf<List<Order>>(emptyList())
     var isLoading = mutableStateOf(false)
@@ -96,6 +98,14 @@ class OrderViewModel : ViewModel() {
     fun verifyPayment(order: Order) {
         viewModelScope.launch {
             repository.verifyPayment(order.id)
+                .onSuccess {
+                    // SELLER_DELIVERS only — for DENTALMARKET_DELIVERS, admin
+                    // already sees this info as the courier and doesn't need
+                    // to relay it to the seller.
+                    if (order.deliveryMethod == "SELLER_DELIVERS") {
+                        notificationRepository.createNotification(order)
+                    }
+                }
             loadAllOrders()
         }
     }

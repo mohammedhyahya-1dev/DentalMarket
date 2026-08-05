@@ -32,6 +32,7 @@ import com.dentalmarket.app.ui.screens.MarketplaceScreen
 import com.dentalmarket.app.ui.screens.MyListingsScreen
 import com.dentalmarket.app.ui.screens.MyOrdersScreen
 import com.dentalmarket.app.ui.screens.OrderDetailScreen
+import com.dentalmarket.app.ui.screens.SellerNotificationsScreen
 import com.dentalmarket.app.ui.screens.MyQuestionsScreen
 import com.dentalmarket.app.ui.screens.ProductDetailScreen
 import com.dentalmarket.app.ui.screens.ProfileScreen
@@ -211,6 +212,7 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
                 onMyOrdersClick = { navController.navigate("myOrders") },
                 onAdminOrdersClick = { navController.navigate("adminOrders") },
                 onMyListingsClick = { navController.navigate("myListings") },
+                onNotificationsClick = { navController.navigate("sellerNotifications") },
                 onCategoriesClick = { navController.navigate("categories") },
                 onRequireLogin = { navController.navigate("login") },
                 preselectedCategory = preselectedCategory
@@ -358,6 +360,13 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
                     onEditListing = { id -> navController.navigate("editListing/$id") },
                     onListingClick = { id -> navController.navigate("listingDetail/$id") }
                 )
+            }
+        }
+        composable("sellerNotifications") {
+            if (authViewModel.isAnonymous) {
+                LaunchedEffect(Unit) { navController.popBackStack() }
+            } else {
+                SellerNotificationsScreen(onBack = { navController.popBackStack() })
             }
         }
         composable(

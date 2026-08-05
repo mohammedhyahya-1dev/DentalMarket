@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -23,6 +24,7 @@ import com.dentalmarket.app.ui.components.GuestSignInPrompt
 import com.dentalmarket.app.ui.components.ProductCard
 import com.dentalmarket.app.viewmodel.CartViewModel
 import com.dentalmarket.app.viewmodel.MarketplaceViewModel
+import com.dentalmarket.app.viewmodel.NotificationViewModel
 import com.dentalmarket.app.viewmodel.RatingViewModel
 import com.dentalmarket.app.viewmodel.WatchlistViewModel
 
@@ -37,19 +39,23 @@ fun MarketplaceScreen(
     onMyOrdersClick: () -> Unit,
     onAdminOrdersClick: () -> Unit,
     onMyListingsClick: () -> Unit,
+    onNotificationsClick: () -> Unit,
     onCategoriesClick: () -> Unit,
     onRequireLogin: () -> Unit,
     preselectedCategory: String? = null,
     marketplaceViewModel: MarketplaceViewModel = viewModel(),
     watchlistViewModel: WatchlistViewModel = viewModel(),
-    ratingViewModel: RatingViewModel = viewModel()
+    ratingViewModel: RatingViewModel = viewModel(),
+    notificationViewModel: NotificationViewModel = viewModel()
 ) {
     val cartItems by cartViewModel.cartItems.collectAsState()
     val watchedIds by watchlistViewModel.watchedIds.collectAsState()
     val sellerSummaries by ratingViewModel.sellerSummaries.collectAsState()
+    val unreadNotifications = notificationViewModel.unreadCount
     LaunchedEffect(Unit) {
         marketplaceViewModel.loadListings()
         watchlistViewModel.loadWatchlistOnce()
+        notificationViewModel.loadNotifications()
     }
     val itemCount = cartItems.sumOf { it.quantity }
     val listings = marketplaceViewModel.listings.value
@@ -95,6 +101,15 @@ fun MarketplaceScreen(
                     if (isAdmin) {
                         IconButton(onClick = onAdminOrdersClick) {
                             Icon(Icons.Filled.Settings, contentDescription = "Admin orders")
+                        }
+                    }
+                    IconButton(onClick = { requireLogin(onNotificationsClick) }, modifier = Modifier.padding(end = 8.dp)) {
+                        BadgedBox(badge = {
+                            if (unreadNotifications > 0) {
+                                Badge { Text("$unreadNotifications") }
+                            }
+                        }) {
+                            Icon(Icons.Filled.Notifications, contentDescription = "Notifications")
                         }
                     }
                     IconButton(onClick = { requireLogin(onMyListingsClick) }, modifier = Modifier.padding(end = 8.dp)) {
