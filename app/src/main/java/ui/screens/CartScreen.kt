@@ -20,6 +20,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -54,9 +55,12 @@ fun CartScreen(
     val isGuest = authRepository.isAnonymous
     var showGuestPrompt by remember { mutableStateOf(false) }
     val safetyFeeAmount = cartViewModel.safetyFeeAmount.value ?: 0.0
+    val deliveryAddress = cartViewModel.deliveryAddress.value
+    val deliveryContactPhone = cartViewModel.deliveryContactPhone.value
 
     LaunchedEffect(Unit) {
         cartViewModel.loadSafetyFeeConfig()
+        cartViewModel.loadBuyerDeliveryInfo()
     }
 
     Scaffold(
@@ -77,6 +81,18 @@ fun CartScreen(
                         "Cash on delivery \u2014 pay when your order arrives.",
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    OutlinedTextField(
+                        value = deliveryAddress,
+                        onValueChange = { cartViewModel.updateDeliveryAddress(it) },
+                        label = { Text("Delivery Address") },
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                    )
+                    OutlinedTextField(
+                        value = deliveryContactPhone,
+                        onValueChange = { cartViewModel.updateDeliveryContactPhone(it) },
+                        label = { Text("Delivery Contact Phone") },
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
                     )
                     orderErrorMessage?.let {
                         Text(
@@ -106,7 +122,7 @@ fun CartScreen(
                         onClick = {
                             if (isGuest) showGuestPrompt = true else cartViewModel.checkout()
                         },
-                        enabled = !isPlacingOrder,
+                        enabled = !isPlacingOrder && deliveryAddress.isNotBlank(),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(if (isPlacingOrder) "Placing Order..." else "Place Order (Cash on Delivery)")

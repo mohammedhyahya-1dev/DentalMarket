@@ -37,9 +37,14 @@ service cloud.firestore {
         t.matches('.*(رقمي|رقم هاتفي|اتصل بي|اتصلي بي|كلمني|خابرني|اطلبني|رنلي|رن لي|راسلني|تواصل معي|واتساب|واتس اب|واتسب|تليجرام|تلغرام|فايبر).*');
     }
 
-    // users/{uid}: one profile doc per dentist.
+    // users/{uid}: one profile doc per dentist. Restricted to self/admin
+    // since this now holds deliveryAddress/deliveryContactPhone alongside
+    // mobile/extraMobile — none of that should be readable by other buyers
+    // or sellers. Public-facing info (name shown as "Posted by Dr. X", etc.)
+    // is already denormalized onto listings/orders/ratings, so nothing else
+    // in the app reads another user's doc.
     match /users/{userId} {
-      allow get: if isSignedIn();
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       allow list: if false;
       allow create, update: if isSignedIn() && request.auth.uid == userId;
       allow delete: if false;

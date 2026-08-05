@@ -47,6 +47,31 @@ class CartViewModel : ViewModel() {
         }
     }
 
+    // Pre-filled from the buyer's saved profile default, editable in the
+    // cart, and written back to that same default at checkout — see
+    // checkout() below.
+    var deliveryAddress = mutableStateOf("")
+    var deliveryContactPhone = mutableStateOf("")
+
+    fun loadBuyerDeliveryInfo() {
+        viewModelScope.launch {
+            authRepository.getCurrentUserProfile()
+                .onSuccess { profile ->
+                    deliveryAddress.value = profile?.deliveryAddress ?: ""
+                    deliveryContactPhone.value = profile?.deliveryContactPhone?.takeIf { it.isNotBlank() }
+                        ?: profile?.mobile ?: ""
+                }
+        }
+    }
+
+    fun updateDeliveryAddress(value: String) {
+        deliveryAddress.value = value
+    }
+
+    fun updateDeliveryContactPhone(value: String) {
+        deliveryContactPhone.value = value
+    }
+
     fun addToCart(listing: Listing, quantity: Int = 1) {
         _cartItems.update { current ->
             val existing = current.find { it.listing.id == listing.id }
@@ -100,6 +125,9 @@ class CartViewModel : ViewModel() {
     // same way, but it's now deducted from the seller's payout rather than
     // charged to the buyer — see calculatePayout(). safetyFee is a flat,
     // per-item opt-in (item.safetyFeeSelected), not multiplied by quantity.
+    // deliveryAddress/deliveryContactPhone are a single value for the whole
+    // batch, stamped onto every Order, and also saved back to the buyer's
+    // profile so this checkout's edits become next time's pre-filled default.
     fun checkout() {
         val buyerId = authRepository.currentUserId
         if (buyerId == null) {
@@ -108,6 +136,10 @@ class CartViewModel : ViewModel() {
         }
         val items = _cartItems.value
         if (items.isEmpty()) return
+        if (deliveryAddress.value.isBlank()) {
+            orderErrorMessage.value = "Please enter a delivery address."
+            return
+        }
 
         isPlacingOrder.value = true
         orderErrorMessage.value = null
@@ -121,6 +153,8 @@ class CartViewModel : ViewModel() {
                 .getOrNull()?.feeAmount ?: 0.0
             val configuredSafetyFee = safetyFeeConfigRepository.getSafetyFeeConfig()
                 .getOrNull()?.feeAmount ?: 0.0
+            val address = deliveryAddress.value
+            val contactPhone = deliveryContactPhone.value
 
             var allSucceeded = true
             for (item in items) {
@@ -142,7 +176,9 @@ class CartViewModel : ViewModel() {
                     commissionPercentage = commissionPercentage,
                     deliveryMethod = item.listing.deliveryMethod,
                     deliveryFee = deliveryFee,
-                    safetyFee = if (item.safetyFeeSelected) configuredSafetyFee else 0.0
+                    safetyFee = if (item.safetyFeeSelected) configuredSafetyFee else 0.0,
+                    deliveryAddress = address,
+                    deliveryContactPhone = contactPhone
                 )
                 val orderResult = orderRepository.placeOrder(order)
                 if (orderResult.isFailure) {
@@ -150,6 +186,10 @@ class CartViewModel : ViewModel() {
                     continue
                 }
                 listingRepository.markAsSold(item.listing.id)
+            }
+
+            if (allSucceeded) {
+                authRepository.updateDeliveryInfo(address, contactPhone)
             }
 
             isPlacingOrder.value = false

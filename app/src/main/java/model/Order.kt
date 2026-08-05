@@ -50,7 +50,16 @@ data class Order(
     // order shows the buyer was charged. Flat amount, only present if the
     // buyer opted in for this specific item at checkout (not multiplied by
     // quantity). Paid by the buyer, never reaches the seller.
-    val safetyFee: Double = 0.0
+    val safetyFee: Double = 0.0,
+    // Locked in at checkout, one value for the whole checkout batch (like
+    // buyerName) rather than per item — this app has no concept of shipping
+    // one checkout to multiple addresses. Applies regardless of
+    // deliveryMethod: DentalMarket needs it to act as courier just as much
+    // as a seller does for SELLER_DELIVERS. Admin-only visibility for now;
+    // see firestore.rules for the matching users/{uid} read restriction and
+    // the fact that sellers have no read path to orders at all today.
+    val deliveryAddress: String = "",
+    val deliveryContactPhone: String = ""
 )
 
 enum class OrderStatus(val label: String) {

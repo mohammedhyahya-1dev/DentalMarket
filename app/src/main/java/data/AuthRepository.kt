@@ -255,6 +255,25 @@ class AuthRepository {
         }
     }
 
+    // Saves the buyer's delivery default back to their profile — called from
+    // CartViewModel.checkout() every time, so an edit made at checkout
+    // becomes next time's pre-filled default.
+    suspend fun updateDeliveryInfo(address: String, contactPhone: String): Result<Unit> {
+        return try {
+            val uid = auth.currentUser?.uid ?: throw Exception("Not signed in")
+            val updates = mapOf(
+                "deliveryAddress" to address,
+                "deliveryContactPhone" to contactPhone
+            )
+            firestore.collection("users").document(uid)
+                .set(updates, SetOptions.merge())
+                .awaitResult()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun resendVerificationEmail(): Result<Unit> {
         return try {
             auth.currentUser?.sendEmailVerification()?.awaitResult()

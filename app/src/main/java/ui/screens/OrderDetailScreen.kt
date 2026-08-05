@@ -93,6 +93,12 @@ fun OrderDetailScreen(
                 "$" + "%.2f".format(currentOrder.safetyFee),
                 style = MaterialTheme.typography.bodyLarge
             )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text("Delivery Address", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.outline)
+            Text(currentOrder.deliveryAddress, style = MaterialTheme.typography.bodyLarge)
+            Spacer(modifier = Modifier.height(12.dp))
+            Text("Delivery Contact Phone", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.outline)
+            Text(currentOrder.deliveryContactPhone, style = MaterialTheme.typography.bodyLarge)
         }
     }
 }

@@ -17,5 +17,11 @@ data class DentalUser(
     val extraMobile: String = "",
     // True once the dentist has filled in title/name/specialty/province/mobile.
     // Controls whether MainActivity routes them to CompleteProfileScreen first.
-    val profileComplete: Boolean = false
+    val profileComplete: Boolean = false,
+    // Buyer's saved delivery default — collected/edited at checkout, not
+    // during profile completion (only buyers ever need this). Pre-fills the
+    // checkout fields next time, and is overwritten whenever the buyer edits
+    // it at checkout. See CartViewModel.checkout().
+    val deliveryAddress: String = "",
+    val deliveryContactPhone: String = ""
 )

@@ -120,6 +120,13 @@ fun AdminOrderCard(
             Spacer(modifier = Modifier.height(8.dp))
             SafetyFeeRow(order)
 
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                "Deliver to: ${order.deliveryAddress}  •  Contact: ${order.deliveryContactPhone}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline
+            )
+
             if (order.paymentStatus == "PENDING_VERIFICATION") {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
