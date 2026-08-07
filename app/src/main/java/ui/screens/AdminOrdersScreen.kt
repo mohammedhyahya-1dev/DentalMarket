@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dentalmarket.app.model.Order
+import com.dentalmarket.app.model.OrderDeliveryInfo
 import com.dentalmarket.app.ui.components.PaymentStatusBadge
 import com.dentalmarket.app.viewmodel.OrderViewModel
 import com.dentalmarket.app.viewmodel.calculatePayout
@@ -27,6 +28,7 @@ fun AdminOrdersScreen(
 ) {
     val orders = viewModel.orders.value
     val isLoading = viewModel.isLoading.value
+    val deliveryInfoByOrderId = viewModel.deliveryInfoByOrderId.value
     var orderToReject by remember { mutableStateOf<Order?>(null) }
 
     LaunchedEffect(Unit) {
@@ -60,6 +62,7 @@ fun AdminOrdersScreen(
                     items(orders, key = { it.id }) { order ->
                         AdminOrderCard(
                             order = order,
+                            deliveryInfo = deliveryInfoByOrderId[order.id],
                             onAdvance = { viewModel.advanceStatus(order) },
                             onVerifyPayment = { viewModel.verifyPayment(order) },
                             onRejectPaymentClick = { orderToReject = order }
@@ -85,6 +88,7 @@ fun AdminOrdersScreen(
 @Composable
 fun AdminOrderCard(
     order: Order,
+    deliveryInfo: OrderDeliveryInfo?,
     onAdvance: () -> Unit,
     onVerifyPayment: (() -> Unit)? = null,
     onRejectPaymentClick: (() -> Unit)? = null
@@ -122,7 +126,7 @@ fun AdminOrderCard(
 
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                "Deliver to: ${order.deliveryAddress}  •  Contact: ${order.deliveryContactPhone}",
+                "Deliver to: ${deliveryInfo?.deliveryAddress ?: "…"}  •  Contact: ${deliveryInfo?.deliveryContactPhone ?: "…"}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.outline
             )

@@ -22,9 +22,11 @@ fun OrderDetailScreen(
 ) {
     val order = viewModel.selectedOrder.value
     val isLoading = viewModel.isLoadingOrder.value
+    val deliveryInfo = viewModel.selectedOrderDeliveryInfo.value
 
     LaunchedEffect(orderId) {
         viewModel.loadOrder(orderId)
+        viewModel.loadOrderDeliveryInfo(orderId)
     }
 
     Scaffold(
@@ -95,10 +97,10 @@ fun OrderDetailScreen(
             )
             Spacer(modifier = Modifier.height(12.dp))
             Text("Delivery Address", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.outline)
-            Text(currentOrder.deliveryAddress, style = MaterialTheme.typography.bodyLarge)
+            Text(deliveryInfo?.deliveryAddress ?: "…", style = MaterialTheme.typography.bodyLarge)
             Spacer(modifier = Modifier.height(12.dp))
             Text("Delivery Contact Phone", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.outline)
-            Text(currentOrder.deliveryContactPhone, style = MaterialTheme.typography.bodyLarge)
+            Text(deliveryInfo?.deliveryContactPhone ?: "…", style = MaterialTheme.typography.bodyLarge)
         }
     }
 }

@@ -69,13 +69,21 @@ service cloud.firestore {
         (resource.data.sellerId == request.auth.uid || isAdmin());
     }
 
-    // orders/{id}: buyers see their own; admins see and advance all.
+    // orders/{id}: buyers and sellers see their own; admins see and advance
+    // all. Sellers are read-only here — every mutation below is still
+    // exclusively admin- or buyer-driven, unchanged by adding this read path.
+    // Delivery address/phone are NOT on this document (see
+    // orderDeliveryInfo/{orderId} below) specifically so this seller read
+    // path can never expose them.
     match /orders/{orderId} {
       allow create: if isSignedIn() && request.resource.data.buyerId == request.auth.uid;
       allow get: if isSignedIn() &&
-        (resource.data.buyerId == request.auth.uid || isAdmin());
+        (resource.data.buyerId == request.auth.uid ||
+         resource.data.sellerId == request.auth.uid ||
+         isAdmin());
       allow list: if isAdmin() ||
-        (isSignedIn() && resource.data.buyerId == request.auth.uid);
+        (isSignedIn() &&
+         (resource.data.buyerId == request.auth.uid || resource.data.sellerId == request.auth.uid));
       // Admins can change anything (fulfillment status, payment
       // verify/reject). A buyer who isn't admin can only submit their own
       // payment reference — moving AWAITING_PAYMENT or REJECTED to
@@ -96,6 +104,24 @@ service cloud.firestore {
          request.resource.data.status == 'DELIVERED' &&
          request.resource.data.diff(resource.data).affectedKeys()
            .hasOnly(['status', 'deliveryConfirmedAt']));
+      allow delete: if false;
+    }
+
+    // orderDeliveryInfo/{orderId}: split out of orders/{orderId} specifically
+    // so granting sellers read access to their own orders (above) can never
+    // expose this — Firestore has no field-level redaction, so this split is
+    // what makes "buyer/admin only" a rule-enforced guarantee rather than a
+    // UI convention. Doc id matches the order's own id, same trick
+    // ratings/{orderId} uses. Immutable once written, like every other
+    // locked-at-checkout Order field.
+    match /orderDeliveryInfo/{orderId} {
+      allow create: if isSignedIn() && request.resource.data.buyerId == request.auth.uid;
+      allow get: if isSignedIn() &&
+        (resource.data.buyerId == request.auth.uid || isAdmin());
+      // Only admin ever queries this as a list (AdminOrdersScreen's batched
+      // fetch); a buyer only ever fetches their own single known order by id.
+      allow list: if isAdmin();
+      allow update: if false;
       allow delete: if false;
     }
 

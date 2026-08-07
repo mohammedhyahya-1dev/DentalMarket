@@ -1,17 +1,39 @@
 package com.dentalmarket.app.data
 
 import com.dentalmarket.app.model.Order
+import com.dentalmarket.app.model.OrderDeliveryInfo
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 
 class OrderRepository {
     private val db = FirebaseFirestore.getInstance()
     private val ordersCollection = db.collection("orders")
+    private val orderDeliveryInfoCollection = db.collection("orderDeliveryInfo")
 
-    suspend fun placeOrder(order: Order): Result<Unit> {
+    // Writes the order and its delivery info atomically — a client-generated
+    // doc reference (no write yet) lets both documents share the same id
+    // before either is committed, so a WriteBatch can commit them together.
+    // Without this, a failure between two separate writes could leave an
+    // order with no delivery info anywhere: it would look normal but
+    // couldn't actually be shipped. Returns the created Order with its
+    // Firestore-assigned id — callers that need to act on the specific
+    // order just placed (e.g. queuing up its payment reference prompt)
+    // can't do that with just Result<Unit>.
+    suspend fun placeOrder(order: Order, deliveryAddress: String, deliveryContactPhone: String): Result<Order> {
         return try {
-            ordersCollection.add(order).await()
-            Result.success(Unit)
+            val orderRef = ordersCollection.document()
+            val deliveryInfo = OrderDeliveryInfo(
+                orderId = orderRef.id,
+                buyerId = order.buyerId,
+                deliveryAddress = deliveryAddress,
+                deliveryContactPhone = deliveryContactPhone
+            )
+            db.batch()
+                .set(orderRef, order)
+                .set(orderDeliveryInfoCollection.document(orderRef.id), deliveryInfo)
+                .commit()
+                .await()
+            Result.success(order.copy(id = orderRef.id))
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -30,6 +52,18 @@ class OrderRepository {
     suspend fun getOrdersForBuyer(buyerId: String): Result<List<Order>> {
         return try {
             val snapshot = ordersCollection.whereEqualTo("buyerId", buyerId).get().await()
+            val orders = snapshot.documents.mapNotNull { doc ->
+                doc.toObject(Order::class.java)?.copy(id = doc.id)
+            }
+            Result.success(orders.sortedByDescending { it.createdAt })
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getOrdersForSeller(sellerId: String): Result<List<Order>> {
+        return try {
+            val snapshot = ordersCollection.whereEqualTo("sellerId", sellerId).get().await()
             val orders = snapshot.documents.mapNotNull { doc ->
                 doc.toObject(Order::class.java)?.copy(id = doc.id)
             }

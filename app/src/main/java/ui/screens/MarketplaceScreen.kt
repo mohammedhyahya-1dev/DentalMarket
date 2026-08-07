@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -40,6 +41,7 @@ fun MarketplaceScreen(
     onAdminOrdersClick: () -> Unit,
     onMyListingsClick: () -> Unit,
     onNotificationsClick: () -> Unit,
+    onSellerOrdersClick: () -> Unit,
     onCategoriesClick: () -> Unit,
     onRequireLogin: () -> Unit,
     preselectedCategory: String? = null,
@@ -111,6 +113,9 @@ fun MarketplaceScreen(
                         }) {
                             Icon(Icons.Filled.Notifications, contentDescription = "Notifications")
                         }
+                    }
+                    IconButton(onClick = { requireLogin(onSellerOrdersClick) }, modifier = Modifier.padding(end = 8.dp)) {
+                        Icon(Icons.Filled.Storefront, contentDescription = "My sales")
                     }
                     IconButton(onClick = { requireLogin(onMyListingsClick) }, modifier = Modifier.padding(end = 8.dp)) {
                         Icon(Icons.Filled.Edit, contentDescription = "My listings")

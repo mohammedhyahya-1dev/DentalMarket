@@ -33,6 +33,12 @@ class CartViewModel : ViewModel() {
     var orderPlacedSuccess = mutableStateOf(false)
     var orderErrorMessage = mutableStateOf<String?>(null)
 
+    // The orders just created by checkout(), each with its real Firestore
+    // id — CartScreen uses this to queue up a payment reference prompt per
+    // order immediately, instead of the buyer having to find each one
+    // separately in My Orders.
+    var createdOrders = mutableStateOf<List<Order>>(emptyList())
+
     // Live current flat fee, fetched once when the cart screen opens —
     // purely so each CartItemRow's checkbox label can show a real
     // "Add buyer safety fee (+$X)" number. The value actually locked onto
@@ -113,8 +119,19 @@ class CartViewModel : ViewModel() {
     // for the app's whole session), so whoever calls sign-out/sign-in/guest
     // upgrade must call this too — otherwise one account's cart carries over
     // into the next session that reuses this same ViewModel instance.
+    // createdOrders has the same leak risk (same session-long-lived
+    // instance), so it's cleared here too.
     fun clearCart() {
         _cartItems.value = emptyList()
+        clearCreatedOrders()
+    }
+
+    // Called once CartScreen has walked through the whole payment-reference
+    // queue for a completed checkout, so that list can't leak into the next
+    // time CartScreen is entered and immediately (and wrongly) pop up a
+    // payment dialog for an already-finished checkout.
+    fun clearCreatedOrders() {
+        createdOrders.value = emptyList()
     }
 
     // Places one Order per cart item (cash-on-delivery), marks each listing
@@ -157,6 +174,7 @@ class CartViewModel : ViewModel() {
             val contactPhone = deliveryContactPhone.value
 
             var allSucceeded = true
+            val placedOrders = mutableListOf<Order>()
             for (item in items) {
                 val deliveryFee = if (item.listing.deliveryMethod == "DENTALMARKET_DELIVERS") {
                     configuredDeliveryFee
@@ -176,15 +194,15 @@ class CartViewModel : ViewModel() {
                     commissionPercentage = commissionPercentage,
                     deliveryMethod = item.listing.deliveryMethod,
                     deliveryFee = deliveryFee,
-                    safetyFee = if (item.safetyFeeSelected) configuredSafetyFee else 0.0,
-                    deliveryAddress = address,
-                    deliveryContactPhone = contactPhone
+                    safetyFee = if (item.safetyFeeSelected) configuredSafetyFee else 0.0
                 )
-                val orderResult = orderRepository.placeOrder(order)
-                if (orderResult.isFailure) {
+                val orderResult = orderRepository.placeOrder(order, address, contactPhone)
+                val placedOrder = orderResult.getOrNull()
+                if (placedOrder == null) {
                     allSucceeded = false
                     continue
                 }
+                placedOrders.add(placedOrder)
                 listingRepository.markAsSold(item.listing.id)
             }
 
@@ -195,6 +213,7 @@ class CartViewModel : ViewModel() {
             isPlacingOrder.value = false
             if (allSucceeded) {
                 _cartItems.value = emptyList()
+                createdOrders.value = placedOrders
                 orderPlacedSuccess.value = true
             } else {
                 orderErrorMessage.value = "Some items could not be ordered. Please try again."

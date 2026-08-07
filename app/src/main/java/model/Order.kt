@@ -50,16 +50,14 @@ data class Order(
     // order shows the buyer was charged. Flat amount, only present if the
     // buyer opted in for this specific item at checkout (not multiplied by
     // quantity). Paid by the buyer, never reaches the seller.
-    val safetyFee: Double = 0.0,
-    // Locked in at checkout, one value for the whole checkout batch (like
-    // buyerName) rather than per item — this app has no concept of shipping
-    // one checkout to multiple addresses. Applies regardless of
-    // deliveryMethod: DentalMarket needs it to act as courier just as much
-    // as a seller does for SELLER_DELIVERS. Admin-only visibility for now;
-    // see firestore.rules for the matching users/{uid} read restriction and
-    // the fact that sellers have no read path to orders at all today.
-    val deliveryAddress: String = "",
-    val deliveryContactPhone: String = ""
+    val safetyFee: Double = 0.0
+    // Delivery address/contact phone deliberately live in a separate
+    // orderDeliveryInfo/{orderId} document (see model/OrderDeliveryInfo.kt),
+    // not here — sellers get read access to their own orders
+    // (getOrdersForSeller), and Firestore has no way to grant access to a
+    // document while hiding specific fields from it. Splitting them out is
+    // what makes "buyer/admin only" a rule-enforced guarantee. Written
+    // atomically alongside this Order in OrderRepository.placeOrder().
 )
 
 enum class OrderStatus(val label: String) {

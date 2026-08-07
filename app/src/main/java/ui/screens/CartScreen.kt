@@ -34,18 +34,24 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dentalmarket.app.data.AuthRepository
+import com.dentalmarket.app.data.PaymentConfigRepository
+import com.dentalmarket.app.model.PaymentConfig
 import com.dentalmarket.app.ui.components.CartItemRow
 import com.dentalmarket.app.ui.components.GuestSignInPrompt
+import com.dentalmarket.app.ui.components.PaymentReferenceDialog
 import com.dentalmarket.app.ui.theme.WarmAmber
 import com.dentalmarket.app.viewmodel.CartViewModel
+import com.dentalmarket.app.viewmodel.OrderViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CartScreen(
     cartViewModel: CartViewModel,
     onBack: () -> Unit,
-    onRequireLogin: () -> Unit
+    onRequireLogin: () -> Unit,
+    orderViewModel: OrderViewModel = viewModel()
 ) {
     val cartItems by cartViewModel.cartItems.collectAsState()
     val isPlacingOrder = cartViewModel.isPlacingOrder.value
@@ -58,9 +64,24 @@ fun CartScreen(
     val deliveryAddress = cartViewModel.deliveryAddress.value
     val deliveryContactPhone = cartViewModel.deliveryContactPhone.value
 
+    val paymentConfigRepository = remember { PaymentConfigRepository() }
+    var paymentConfig by remember { mutableStateOf<PaymentConfig?>(null) }
+    var paymentConfigLoadFailed by remember { mutableStateOf(false) }
+    val isSubmittingPayment = orderViewModel.isSubmittingPayment.value
+    val paymentErrorMessage = orderViewModel.paymentErrorMessage.value
+
+    val createdOrders = cartViewModel.createdOrders.value
+    var paymentQueueIndex by remember { mutableStateOf(0) }
+    LaunchedEffect(createdOrders) {
+        paymentQueueIndex = 0
+    }
+
     LaunchedEffect(Unit) {
         cartViewModel.loadSafetyFeeConfig()
         cartViewModel.loadBuyerDeliveryInfo()
+        paymentConfigRepository.getPaymentConfig()
+            .onSuccess { paymentConfig = it }
+            .onFailure { paymentConfigLoadFailed = true }
     }
 
     Scaffold(
@@ -78,7 +99,7 @@ fun CartScreen(
             if (cartItems.isNotEmpty()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        "Cash on delivery \u2014 pay when your order arrives.",
+                        "Pay via QiCard or ZainCash \u2014 you'll submit your transaction reference after placing your order.",
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
@@ -125,7 +146,7 @@ fun CartScreen(
                         enabled = !isPlacingOrder && deliveryAddress.isNotBlank(),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(if (isPlacingOrder) "Placing Order..." else "Place Order (Cash on Delivery)")
+                        Text(if (isPlacingOrder) "Placing Order..." else "Place Order (QiCard/ZainCash)")
                     }
                 }
             }
@@ -178,6 +199,44 @@ fun CartScreen(
             onSignIn = {
                 showGuestPrompt = false
                 onRequireLogin()
+            }
+        )
+    }
+
+    // Prompt for a payment reference on each order just placed, one at a
+    // time — the buyer no longer has to find each one separately in My
+    // Orders. Dismissing/canceling one just moves to the next; that order
+    // simply stays Awaiting Payment, same as it would without this prompt,
+    // and "Enter Payment Reference" in My Orders remains there to finish it
+    // later.
+    //
+    // Reaching the end of the queue clears CartViewModel.createdOrders
+    // rather than just resetting the local index — CartViewModel outlives
+    // this screen, so leaving that list populated would let a completed
+    // checkout's orders leak into the next time CartScreen is entered and
+    // immediately re-show a payment dialog for an already-finished checkout.
+    fun advancePaymentQueue() {
+        if (paymentQueueIndex + 1 >= createdOrders.size) {
+            cartViewModel.clearCreatedOrders()
+            paymentQueueIndex = 0
+        } else {
+            paymentQueueIndex += 1
+        }
+    }
+
+    if (paymentQueueIndex < createdOrders.size) {
+        val orderForPayment = createdOrders[paymentQueueIndex]
+        PaymentReferenceDialog(
+            order = orderForPayment,
+            paymentConfig = paymentConfig,
+            paymentConfigLoadFailed = paymentConfigLoadFailed,
+            isSubmitting = isSubmittingPayment,
+            errorMessage = paymentErrorMessage,
+            onDismiss = { advancePaymentQueue() },
+            onSubmit = { reference ->
+                orderViewModel.submitPaymentReference(orderForPayment, reference) {
+                    advancePaymentQueue()
+                }
             }
         )
     }

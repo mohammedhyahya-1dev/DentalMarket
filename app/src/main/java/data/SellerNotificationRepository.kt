@@ -9,15 +9,19 @@ class SellerNotificationRepository {
     private val db = FirebaseFirestore.getInstance()
     private val notificationsCollection = db.collection("sellerNotifications")
 
-    suspend fun createNotification(order: Order): Result<Unit> {
+    suspend fun createNotification(
+        order: Order,
+        deliveryAddress: String,
+        deliveryContactPhone: String
+    ): Result<Unit> {
         return try {
             val notification = SellerNotification(
                 recipientId = order.sellerId,
                 orderId = order.id,
                 listingName = order.listingName,
                 buyerName = order.buyerName,
-                deliveryAddress = order.deliveryAddress,
-                deliveryContactPhone = order.deliveryContactPhone
+                deliveryAddress = deliveryAddress,
+                deliveryContactPhone = deliveryContactPhone
             )
             notificationsCollection.add(notification).await()
             Result.success(Unit)

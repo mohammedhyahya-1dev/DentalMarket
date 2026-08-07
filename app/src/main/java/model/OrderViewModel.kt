@@ -4,15 +4,18 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dentalmarket.app.data.AuthRepository
+import com.dentalmarket.app.data.OrderDeliveryInfoRepository
 import com.dentalmarket.app.data.OrderRepository
 import com.dentalmarket.app.data.SellerNotificationRepository
 import com.dentalmarket.app.model.Order
+import com.dentalmarket.app.model.OrderDeliveryInfo
 import kotlinx.coroutines.launch
 
 class OrderViewModel : ViewModel() {
     private val repository = OrderRepository()
     private val authRepository = AuthRepository()
     private val notificationRepository = SellerNotificationRepository()
+    private val deliveryInfoRepository = OrderDeliveryInfoRepository()
 
     var orders = mutableStateOf<List<Order>>(emptyList())
     var isLoading = mutableStateOf(false)
@@ -20,6 +23,14 @@ class OrderViewModel : ViewModel() {
 
     var selectedOrder = mutableStateOf<Order?>(null)
     var isLoadingOrder = mutableStateOf(false)
+
+    // AdminOrdersScreen's batched per-order delivery info, keyed by orderId
+    // — loaded once alongside loadAllOrders() rather than per-card, so a
+    // list of many orders doesn't fire one query per order.
+    var deliveryInfoByOrderId = mutableStateOf<Map<String, OrderDeliveryInfo>>(emptyMap())
+
+    // OrderDetailScreen's single-order delivery info (the buyer's own order).
+    var selectedOrderDeliveryInfo = mutableStateOf<OrderDeliveryInfo?>(null)
 
     // Separate from isLoading/errorMessage above so submitting a payment
     // reference from a dialog doesn't trigger the full-screen list spinner.
@@ -36,6 +47,15 @@ class OrderViewModel : ViewModel() {
         }
     }
 
+    // Alongside loadOrder() for OrderDetailScreen — a separate call since
+    // it's a different collection, but always paired with it in practice.
+    fun loadOrderDeliveryInfo(orderId: String) {
+        viewModelScope.launch {
+            deliveryInfoRepository.getDeliveryInfo(orderId)
+                .onSuccess { selectedOrderDeliveryInfo.value = it }
+        }
+    }
+
     fun loadMyOrders() {
         val buyerId = authRepository.currentUserId ?: return
         isLoading.value = true
@@ -47,13 +67,37 @@ class OrderViewModel : ViewModel() {
         }
     }
 
+    // The seller's own "My Sales" view — orders placed against their
+    // listings. Deliberately does not load delivery info at all; sellers
+    // never get access to that collection (see firestore.rules).
+    fun loadOrdersForSeller() {
+        val sellerId = authRepository.currentUserId ?: return
+        isLoading.value = true
+        viewModelScope.launch {
+            val result = repository.getOrdersForSeller(sellerId)
+            isLoading.value = false
+            result.onSuccess { orders.value = it }
+            result.onFailure { errorMessage.value = it.message }
+        }
+    }
+
     fun loadAllOrders() {
         isLoading.value = true
         viewModelScope.launch {
             val result = repository.getAllOrders()
             isLoading.value = false
-            result.onSuccess { orders.value = it }
+            result.onSuccess { loadedOrders ->
+                orders.value = loadedOrders
+                loadDeliveryInfoForOrders(loadedOrders.map { it.id })
+            }
             result.onFailure { errorMessage.value = it.message }
+        }
+    }
+
+    private fun loadDeliveryInfoForOrders(orderIds: List<String>) {
+        viewModelScope.launch {
+            deliveryInfoRepository.getDeliveryInfoForOrders(orderIds)
+                .onSuccess { deliveryInfoByOrderId.value = it }
         }
     }
 
@@ -101,9 +145,16 @@ class OrderViewModel : ViewModel() {
                 .onSuccess {
                     // SELLER_DELIVERS only — for DENTALMARKET_DELIVERS, admin
                     // already sees this info as the courier and doesn't need
-                    // to relay it to the seller.
+                    // to relay it to the seller. Delivery info now lives in
+                    // its own document (admin-readable), fetched here rather
+                    // than read off order directly.
                     if (order.deliveryMethod == "SELLER_DELIVERS") {
-                        notificationRepository.createNotification(order)
+                        val deliveryInfo = deliveryInfoRepository.getDeliveryInfo(order.id).getOrNull()
+                        notificationRepository.createNotification(
+                            order = order,
+                            deliveryAddress = deliveryInfo?.deliveryAddress ?: "",
+                            deliveryContactPhone = deliveryInfo?.deliveryContactPhone ?: ""
+                        )
                     }
                 }
             loadAllOrders()
