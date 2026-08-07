@@ -59,12 +59,19 @@ service cloud.firestore {
       // what CartViewModel.checkout() does right after placing an order, and
       // the app has no cross-collection way to verify the buyer actually
       // holds a matching order for this listing, so it's trusted as-is.
+      // Same trust level for watchCount: any signed-in user may nudge it by
+      // exactly +/-1 (matching add/remove in WatchlistRepository), with no
+      // cross-check that a real watchlist doc changed alongside it — this is
+      // a display counter, not something that needs to be tamper-proof.
       allow update: if isSignedIn() &&
         (resource.data.sellerId == request.auth.uid ||
          isAdmin() ||
          (resource.data.status == 'AVAILABLE' &&
           request.resource.data.status == 'SOLD' &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])));
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])) ||
+         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['watchCount']) &&
+          (request.resource.data.watchCount == resource.data.watchCount + 1 ||
+           request.resource.data.watchCount == resource.data.watchCount - 1)));
       allow delete: if isSignedIn() &&
         (resource.data.sellerId == request.auth.uid || isAdmin());
     }

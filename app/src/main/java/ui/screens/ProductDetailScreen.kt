@@ -88,6 +88,21 @@ fun ProductDetailScreen(
     val sellerSummaries by ratingViewModel.sellerSummaries.collectAsState()
     val inquiryErrorMessage by inquiryViewModel.errorMessage.collectAsState()
 
+    // Optimistically bumps the locally-displayed watchCount in step with the
+    // heart icon, rolling back only if the underlying toggle actually fails
+    // — mirrors WatchlistViewModel's own optimistic treatment of watchedIds,
+    // since that ViewModel has no notion of a specific listing's count.
+    fun toggleWatchWithCount() {
+        val wasWatched = isWatched
+        val delta = if (wasWatched) -1 else 1
+        listing = listing?.let { it.copy(watchCount = it.watchCount + delta) }
+        watchlistViewModel.toggleWatch(listingId) { success ->
+            if (!success) {
+                listing = listing?.let { it.copy(watchCount = it.watchCount - delta) }
+            }
+        }
+    }
+
     LaunchedEffect(listingId) {
         val result = repository.getListingById(listingId)
         result.onSuccess { listing = it }
@@ -110,7 +125,7 @@ fun ProductDetailScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { requireLogin { watchlistViewModel.toggleWatch(listingId) } }) {
+                    IconButton(onClick = { requireLogin { toggleWatchWithCount() } }) {
                         Icon(
                             if (isWatched) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                             contentDescription = if (isWatched) "Remove from watchlist" else "Add to watchlist",
@@ -170,6 +185,18 @@ fun ProductDetailScreen(
                 style = MaterialTheme.typography.headlineMedium,
                 color = WarmAmber
             )
+            if (currentListing.watchCount > 0) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    if (currentListing.watchCount == 1) {
+                        "1 person watching this"
+                    } else {
+                        "${currentListing.watchCount} people watching this"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
             Spacer(modifier = Modifier.height(16.dp))
             Text(currentListing.description, style = MaterialTheme.typography.bodyLarge)
             Spacer(modifier = Modifier.height(20.dp))
