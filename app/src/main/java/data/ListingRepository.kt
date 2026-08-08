@@ -1,6 +1,7 @@
 package com.dentalmarket.app.data
 
 import com.dentalmarket.app.model.Listing
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 
@@ -74,6 +75,17 @@ class ListingRepository {
     suspend fun deleteListing(listingId: String): Result<Unit> {
         return try {
             listingsCollection.document(listingId).delete().await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // Fire-and-forget from ProductDetailScreen on every open — caller
+    // doesn't await or handle failure, a missed tick isn't worth surfacing.
+    suspend fun incrementViewCount(listingId: String): Result<Unit> {
+        return try {
+            listingsCollection.document(listingId).update("viewCount", FieldValue.increment(1)).await()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)

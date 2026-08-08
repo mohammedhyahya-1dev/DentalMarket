@@ -18,12 +18,10 @@ data class Listing(
     // only the seller's yes/no. Read at checkout time and locked onto each
     // Order independently, same as everything else in that pipeline.
     val deliveryMethod: String = "SELLER_DELIVERS",
-    // Denormalized watchlist count, nudged by ±1 in WatchlistRepository
-    // whenever a buyer adds/removes this listing — not queried live from
-    // the watchlist collection, since Firestore can't rules-gate a count()
-    // aggregation query any differently than the equivalent full-document
-    // list query, and watchlist docs are buyer-private (see
-    // firestore.rules). This is the only way to show "N people watching"
-    // without exposing who.
-    val watchCount: Int = 0
+    // Page-view counter, bumped by +1 in ListingRepository every time
+    // ProductDetailScreen opens for this listing — no dedup, the same
+    // person reopening it counts again each time. Unrelated to the
+    // watchlist (heart icon) now; that's tracked separately in the
+    // watchlist collection.
+    val viewCount: Int = 0
 )

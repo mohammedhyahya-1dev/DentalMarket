@@ -26,10 +26,7 @@ class WatchlistViewModel : ViewModel() {
 
     fun isWatched(listingId: String): Boolean = _watchedIds.value.contains(listingId)
 
-    // onResult lets a caller (e.g. ProductDetailScreen) mirror its own
-    // optimistic-then-rollback treatment for a locally-displayed watchCount,
-    // since this ViewModel only tracks watched ids, not listing data.
-    fun toggleWatch(listingId: String, onResult: (success: Boolean) -> Unit = {}) {
+    fun toggleWatch(listingId: String) {
         val currentlyWatched = isWatched(listingId)
         // Update instantly so the heart icon feels responsive, then sync to
         // Firestore in the background \u2014 and roll back only if that fails.
@@ -52,7 +49,6 @@ class WatchlistViewModel : ViewModel() {
                     _watchedIds.value - listingId
                 }
             }
-            onResult(result.isSuccess)
         }
     }
 }
