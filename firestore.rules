@@ -10,6 +10,14 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Distinguishes a real account from a guest's anonymous-auth session —
+    // request.auth.uid exists for both, so this is the only way to tell
+    // them apart in rules. Mirrors FirebaseUser.isAnonymous on the client
+    // (see AuthRepository.isAnonymous).
+    function isNotGuest() {
+      return isSignedIn() && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
     function isAdmin() {
       return isSignedIn() && request.auth.token.email in ['p.mohammed.h.yahya@gmail.com'];
     }
@@ -192,6 +200,26 @@ service cloud.firestore {
         orderForRating(orderId).status in ['DELIVERED', 'PAID_TO_SELLER'];
       // Immutable once submitted — matches the app's one-rating-per-order rule.
       allow update, delete: if false;
+    }
+
+    // reports/{reporterId_listingId}: buyer-filed moderation flags, purely
+    // logged for admin to review — no in-app admin screen yet, the
+    // Firebase Console is enough until report volume says otherwise.
+    // Reporting is restricted to real accounts (isNotGuest), not just
+    // signed-in ones, since an anonymous UID resets on reinstall and gives
+    // moderation nothing to act on. Doc id is reporterId_listingId, the
+    // same trick watchlist/{uid}_{listingId} uses, so a second report from
+    // the same user for the same listing lands on the same doc — which
+    // falls through to allow update below and is rejected there, since
+    // only admin (flipping status) can ever update one of these.
+    match /reports/{reportId} {
+      allow create: if isNotGuest() &&
+        request.resource.data.reporterId == request.auth.uid &&
+        reportId == request.auth.uid + '_' + request.resource.data.listingId;
+      allow get, list: if isAdmin();
+      allow update: if isAdmin() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+      allow delete: if false;
     }
   }
 }

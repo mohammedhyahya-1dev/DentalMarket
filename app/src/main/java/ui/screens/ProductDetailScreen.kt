@@ -14,10 +14,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,6 +46,8 @@ import com.dentalmarket.app.data.ListingRepository
 import com.dentalmarket.app.model.Condition
 import com.dentalmarket.app.model.Inquiry
 import com.dentalmarket.app.model.Listing
+import com.dentalmarket.app.model.Report
+import com.dentalmarket.app.model.ReportReason
 import com.dentalmarket.app.ui.components.ConditionBadge
 import com.dentalmarket.app.ui.components.GuestSignInPrompt
 import com.dentalmarket.app.ui.components.RatingBadge
@@ -54,6 +60,7 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dentalmarket.app.viewmodel.RatingViewModel
+import com.dentalmarket.app.viewmodel.ReportViewModel
 import com.dentalmarket.app.viewmodel.WatchlistViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,7 +74,8 @@ fun ProductDetailScreen(
     onBack: () -> Unit,
     onRequireLogin: () -> Unit,
     watchlistViewModel: WatchlistViewModel = viewModel(),
-    ratingViewModel: RatingViewModel = viewModel()
+    ratingViewModel: RatingViewModel = viewModel(),
+    reportViewModel: ReportViewModel = viewModel()
 ) {
     var listing by remember { mutableStateOf<Listing?>(null) }
     var quantity by remember { mutableIntStateOf(1) }
@@ -75,6 +83,10 @@ fun ProductDetailScreen(
     val repository = remember { ListingRepository() }
     var showQuestionDialog by remember { mutableStateOf(false) }
     var questionText by remember { mutableStateOf("") }
+    var showReportDialog by remember { mutableStateOf(false) }
+    var reportReason by remember { mutableStateOf(ReportReason.COUNTERFEIT) }
+    var reportDetails by remember { mutableStateOf("") }
+    var showReportSentMessage by remember { mutableStateOf(false) }
     val authRepository = remember { AuthRepository() }
     val isGuest = authRepository.isAnonymous
     var showGuestPrompt by remember { mutableStateOf(false) }
@@ -87,6 +99,7 @@ fun ProductDetailScreen(
     val isWatched = watchedIds.contains(listingId)
     val sellerSummaries by ratingViewModel.sellerSummaries.collectAsState()
     val inquiryErrorMessage by inquiryViewModel.errorMessage.collectAsState()
+    val reportErrorMessage by reportViewModel.errorMessage.collectAsState()
 
     LaunchedEffect(listingId) {
         val result = repository.getListingById(listingId)
@@ -189,6 +202,9 @@ fun ProductDetailScreen(
             Text(currentListing.description, style = MaterialTheme.typography.bodyLarge)
             Spacer(modifier = Modifier.height(20.dp))
 
+            SafetyTipsCard()
+            Spacer(modifier = Modifier.height(20.dp))
+
             if (currentListing.specifics.isNotEmpty()) {
                 Text("Item Specifics", style = MaterialTheme.typography.titleMedium)
                 Spacer(modifier = Modifier.height(8.dp))
@@ -255,10 +271,31 @@ fun ProductDetailScreen(
                 Text("Ask a Question")
             }
 
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedButton(
+                onClick = { requireLogin { showReportDialog = true } },
+                modifier = Modifier.fillMaxWidth(),
+                colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Text("Report Listing")
+            }
+
             if (showAddedMessage) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     "Added to cart \u2713",
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+
+            if (showReportSentMessage) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    "Report submitted \u2013 thank you, our team will review it",
                     color = MaterialTheme.colorScheme.primary,
                     style = MaterialTheme.typography.bodyMedium
                 )
@@ -310,6 +347,80 @@ fun ProductDetailScreen(
                     }
                 )
             }
+
+            if (showReportDialog) {
+                var reasonExpanded by remember { mutableStateOf(false) }
+                AlertDialog(
+                    onDismissRequest = { showReportDialog = false; reportViewModel.clearError() },
+                    title = { Text("Report Listing") },
+                    text = {
+                        Column {
+                            ExposedDropdownMenuBox(
+                                expanded = reasonExpanded,
+                                onExpandedChange = { reasonExpanded = it }
+                            ) {
+                                OutlinedTextField(
+                                    value = reportReason.label,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text("Reason") },
+                                    modifier = Modifier.fillMaxWidth().menuAnchor()
+                                )
+                                ExposedDropdownMenu(
+                                    expanded = reasonExpanded,
+                                    onDismissRequest = { reasonExpanded = false }
+                                ) {
+                                    ReportReason.entries.forEach { r ->
+                                        DropdownMenuItem(
+                                            text = { Text(r.label) },
+                                            onClick = {
+                                                reportReason = r
+                                                reasonExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            OutlinedTextField(
+                                value = reportDetails,
+                                onValueChange = { reportDetails = it },
+                                label = { Text("Details (optional)") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            reportErrorMessage?.let {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                reportViewModel.submitReport(
+                                    Report(
+                                        listingId = currentListing.id,
+                                        listingName = currentListing.name,
+                                        reason = reportReason.name,
+                                        details = reportDetails
+                                    )
+                                ) {
+                                    showReportDialog = false
+                                    reportDetails = ""
+                                    showReportSentMessage = true
+                                }
+                            }
+                        ) {
+                            Text("Submit")
+                        }
+                    },
+                    dismissButton = {
+                        OutlinedButton(onClick = { showReportDialog = false; reportViewModel.clearError() }) {
+                            Text("Cancel")
+                        }
+                    }
+                )
+            }
         }
     }
 
@@ -321,5 +432,39 @@ fun ProductDetailScreen(
                 onRequireLogin()
             }
         )
+    }
+}
+
+@Composable
+private fun SafetyTipsCard() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = BoneWhite)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Filled.Shield,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.outline
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Safety Tips", style = MaterialTheme.typography.titleSmall)
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            listOf(
+                "Meet in a public place when possible.",
+                "Never send payment outside the app — DentalMarket can't help recover off-platform payments.",
+                "Review the listing's photos and description carefully before ordering — payment happens upfront, so make sure it's what you expect.",
+                "Report suspicious listings or messages so our team can review them."
+            ).forEach { tip ->
+                Text(
+                    "• $tip",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+        }
     }
 }
