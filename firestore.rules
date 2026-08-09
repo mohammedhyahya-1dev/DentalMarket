@@ -22,10 +22,20 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.email in ['p.mohammed.h.yahya@gmail.com'];
     }
 
-    // Cross-collection lookup so a rating write can be checked against the
-    // order it claims to be for.
-    function orderForRating(orderId) {
+    // Cross-collection lookup, used wherever a write to another collection
+    // needs to be checked against the order it claims to be for (ratings,
+    // disputes, dispute-triggered sellerNotifications).
+    function getOrder(orderId) {
       return get(/databases/$(database)/documents/orders/$(orderId)).data;
+    }
+
+    // Gates the DELIVERED -> PAID_TO_SELLER transition below — a dispute
+    // holds up the payout until admin flips its status off OPEN (see
+    // disputes/{orderId}'s update rule). exists() first since most orders
+    // never have a dispute doc at all.
+    function hasOpenDispute(orderId) {
+      return exists(/databases/$(database)/documents/disputes/$(orderId)) &&
+        get(/databases/$(database)/documents/disputes/$(orderId)).data.status == 'OPEN';
     }
 
     // Backstop for ContactInfoFilter.kt (client-side) so a modified client
@@ -100,14 +110,23 @@ service cloud.firestore {
         (isSignedIn() &&
          (resource.data.buyerId == request.auth.uid || resource.data.sellerId == request.auth.uid));
       // Admins can change anything (fulfillment status, payment
-      // verify/reject). A buyer who isn't admin can only submit their own
-      // payment reference — moving AWAITING_PAYMENT or REJECTED to
-      // PENDING_VERIFICATION — and only those three fields; they can never
-      // set paymentStatus to VERIFIED themselves. A buyer can also confirm
-      // their own SELLER_DELIVERS order arrived — moving PICKED_UP to
-      // DELIVERED — but never for a DENTALMARKET_DELIVERS order, where only
-      // admin (as courier) can advance that step.
-      allow update: if isAdmin() ||
+      // verify/reject) — EXCEPT moving DELIVERED -> PAID_TO_SELLER while an
+      // open dispute exists on this order; that one transition is where
+      // real money leaves the platform, so it stays blocked until admin
+      // resolves the dispute first (flips disputes/{orderId}.status off
+      // OPEN), not just advanceStatus()'s client-side check. A buyer who
+      // isn't admin can only submit their own payment reference — moving
+      // AWAITING_PAYMENT or REJECTED to PENDING_VERIFICATION — and only
+      // those three fields; they can never set paymentStatus to VERIFIED
+      // themselves. A buyer can also confirm their own SELLER_DELIVERS
+      // order arrived — moving PICKED_UP to DELIVERED — but never for a
+      // DENTALMARKET_DELIVERS order, where only admin (as courier) can
+      // advance that step.
+      allow update: if
+        (isAdmin() &&
+         !(resource.data.status == 'DELIVERED' &&
+           request.resource.data.status == 'PAID_TO_SELLER' &&
+           hasOpenDispute(orderId))) ||
         (isSignedIn() && resource.data.buyerId == request.auth.uid &&
          resource.data.paymentStatus in ['AWAITING_PAYMENT', 'REJECTED'] &&
          request.resource.data.paymentStatus == 'PENDING_VERIFICATION' &&
@@ -167,14 +186,31 @@ service cloud.firestore {
       allow update: if false;
     }
 
-    // sellerNotifications/{id}: in-app "here's who to deliver to" handoff,
-    // created only by the verify-payment path (see OrderViewModel.verifyPayment)
-    // for SELLER_DELIVERS orders. Carries the same buyer address/phone as
-    // orders/{id}.deliveryAddress, so it gets the same care: only the
-    // intended seller (recipientId) or admin can ever read one — never the
-    // buyer, never another seller.
+    // sellerNotifications/{id}: in-app notifications to a seller — the
+    // original "here's who to deliver to" handoff (created only by the
+    // verify-payment path, see OrderViewModel.verifyPayment, for
+    // SELLER_DELIVERS orders) plus the two dispute notifications (see
+    // model/SellerNotification.kt's type field). Carries the same buyer
+    // address/phone as orders/{id}.deliveryAddress for the handoff variant,
+    // so it gets the same care: only the intended seller (recipientId) or
+    // admin can ever read one — never the buyer, never another seller.
+    //
+    // Creation is admin-only EXCEPT the DISPUTE_OPENED variant, which the
+    // buyer's own client writes when they file a dispute — no admin action
+    // is involved at that point. That path is deliberately narrow: type
+    // must be exactly 'DISPUTE_OPENED', and a cross-collection lookup on
+    // the order confirms the caller really is that order's buyer and
+    // recipientId really is that order's seller, so a buyer can't spoof a
+    // notification onto an unrelated order or a different recipient. There
+    // is no free-text field on this path (see SellerNotification.kt) — the
+    // rendered sentence lives in SellerNotificationsScreen's Kotlin, not in
+    // the document, so this rule never has to validate message content.
     match /sellerNotifications/{id} {
-      allow create: if isAdmin();
+      allow create: if isAdmin() ||
+        (isSignedIn() &&
+         request.resource.data.type == 'DISPUTE_OPENED' &&
+         getOrder(request.resource.data.orderId).buyerId == request.auth.uid &&
+         request.resource.data.recipientId == getOrder(request.resource.data.orderId).sellerId);
       allow get, list: if isSignedIn() &&
         (resource.data.recipientId == request.auth.uid || isAdmin());
       // The recipient can only flip their own notification to read — never
@@ -196,8 +232,8 @@ service cloud.firestore {
         request.resource.data.orderId == orderId &&
         request.resource.data.stars is int &&
         request.resource.data.stars >= 1 && request.resource.data.stars <= 5 &&
-        orderForRating(orderId).buyerId == request.auth.uid &&
-        orderForRating(orderId).status in ['DELIVERED', 'PAID_TO_SELLER'];
+        getOrder(orderId).buyerId == request.auth.uid &&
+        getOrder(orderId).status in ['DELIVERED', 'PAID_TO_SELLER'];
       // Immutable once submitted — matches the app's one-rating-per-order rule.
       allow update, delete: if false;
     }
@@ -219,6 +255,30 @@ service cloud.firestore {
       allow get, list: if isAdmin();
       allow update: if isAdmin() &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+      allow delete: if false;
+    }
+
+    // disputes/{orderId}: one per order, keyed by the orderId itself (same
+    // trick as ratings/{orderId}) — a second filing attempt lands on the
+    // same doc, which falls through to allow update below and is rejected
+    // there since only admin can update. Filing requires paymentStatus ==
+    // VERIFIED (there's no real money on the line before that) but no
+    // particular fulfillment stage otherwise, and no time window — same
+    // "build fast" posture as reports/{reportId} above. This is the
+    // document hasOpenDispute() reads to gate orders/{orderId}'s
+    // DELIVERED -> PAID_TO_SELLER transition, so admin can never miss one:
+    // resolving it (get/list are admin-only, matching AdminOrdersScreen's
+    // batched fetch) is the only way to unblock that payout.
+    match /disputes/{orderId} {
+      allow create: if isSignedIn() &&
+        request.resource.data.buyerId == request.auth.uid &&
+        request.resource.data.orderId == orderId &&
+        getOrder(orderId).buyerId == request.auth.uid &&
+        getOrder(orderId).paymentStatus == 'VERIFIED';
+      allow get: if isSignedIn() && (resource.data.buyerId == request.auth.uid || isAdmin());
+      allow list: if isAdmin();
+      allow update: if isAdmin() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'resolvedAt']);
       allow delete: if false;
     }
   }

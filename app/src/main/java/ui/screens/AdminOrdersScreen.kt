@@ -13,6 +13,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.dentalmarket.app.model.Dispute
+import com.dentalmarket.app.model.DisputeReason
 import com.dentalmarket.app.model.Order
 import com.dentalmarket.app.model.OrderDeliveryInfo
 import com.dentalmarket.app.ui.components.PaymentStatusBadge
@@ -29,6 +31,7 @@ fun AdminOrdersScreen(
     val orders = viewModel.orders.value
     val isLoading = viewModel.isLoading.value
     val deliveryInfoByOrderId = viewModel.deliveryInfoByOrderId.value
+    val disputeByOrderId = viewModel.disputeByOrderId.value
     var orderToReject by remember { mutableStateOf<Order?>(null) }
 
     LaunchedEffect(Unit) {
@@ -63,9 +66,11 @@ fun AdminOrdersScreen(
                         AdminOrderCard(
                             order = order,
                             deliveryInfo = deliveryInfoByOrderId[order.id],
+                            dispute = disputeByOrderId[order.id],
                             onAdvance = { viewModel.advanceStatus(order) },
                             onVerifyPayment = { viewModel.verifyPayment(order) },
-                            onRejectPaymentClick = { orderToReject = order }
+                            onRejectPaymentClick = { orderToReject = order },
+                            onResolveDispute = { newStatus -> viewModel.resolveDispute(order, newStatus) }
                         )
                     }
                 }
@@ -89,9 +94,11 @@ fun AdminOrdersScreen(
 fun AdminOrderCard(
     order: Order,
     deliveryInfo: OrderDeliveryInfo?,
+    dispute: Dispute? = null,
     onAdvance: () -> Unit,
     onVerifyPayment: (() -> Unit)? = null,
-    onRejectPaymentClick: (() -> Unit)? = null
+    onRejectPaymentClick: (() -> Unit)? = null,
+    onResolveDispute: ((newStatus: String) -> Unit)? = null
 ) {
     Card(shape = RoundedCornerShape(16.dp)) {
         Column(modifier = Modifier.padding(14.dp).fillMaxWidth()) {
@@ -161,7 +168,13 @@ fun AdminOrderCard(
                 )
             }
 
-            if (nextOrderStatus(order.status, order.paymentStatus, order.deliveryMethod) != null) {
+            if (dispute != null && dispute.status == "OPEN") {
+                Spacer(modifier = Modifier.height(10.dp))
+                DisputeBanner(dispute = dispute, onResolve = onResolveDispute)
+            }
+
+            val hasOpenDispute = dispute?.status == "OPEN"
+            if (nextOrderStatus(order.status, order.paymentStatus, order.deliveryMethod, hasOpenDispute) != null) {
                 Spacer(modifier = Modifier.height(10.dp))
                 Button(onClick = onAdvance, modifier = Modifier.fillMaxWidth()) {
                     Text("Advance to Next Stage")
@@ -173,6 +186,59 @@ fun AdminOrderCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline
                 )
+            } else if (order.status == "DELIVERED" && hasOpenDispute) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "Payout on hold until this dispute is resolved",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DisputeBanner(dispute: Dispute, onResolve: ((newStatus: String) -> Unit)?) {
+    val reasonLabel = DisputeReason.entries.find { it.name == dispute.reason }?.label ?: dispute.reason
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+    ) {
+        Column(modifier = Modifier.padding(12.dp).fillMaxWidth()) {
+            Text(
+                "Dispute filed: $reasonLabel",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onErrorContainer
+            )
+            if (dispute.details.isNotBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    dispute.details,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                OutlinedButton(
+                    onClick = { onResolve?.invoke("RESOLVED_BUYER") },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Buyer", style = MaterialTheme.typography.labelMedium)
+                }
+                OutlinedButton(
+                    onClick = { onResolve?.invoke("RESOLVED_SELLER") },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Seller", style = MaterialTheme.typography.labelMedium)
+                }
+                OutlinedButton(
+                    onClick = { onResolve?.invoke("DISMISSED") },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Dismiss", style = MaterialTheme.typography.labelMedium)
+                }
             }
         }
     }

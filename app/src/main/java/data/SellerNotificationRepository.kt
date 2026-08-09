@@ -2,6 +2,7 @@ package com.dentalmarket.app.data
 
 import com.dentalmarket.app.model.Order
 import com.dentalmarket.app.model.SellerNotification
+import com.dentalmarket.app.model.SellerNotificationType
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 
@@ -22,6 +23,42 @@ class SellerNotificationRepository {
                 buyerName = order.buyerName,
                 deliveryAddress = deliveryAddress,
                 deliveryContactPhone = deliveryContactPhone
+            )
+            notificationsCollection.add(notification).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // Buyer-initiated — see firestore.rules' sellerNotifications create rule
+    // for the DISPUTE_OPENED-specific path that allows this non-admin write.
+    suspend fun createDisputeOpenedNotification(order: Order): Result<Unit> {
+        return try {
+            val notification = SellerNotification(
+                recipientId = order.sellerId,
+                orderId = order.id,
+                listingName = order.listingName,
+                buyerName = order.buyerName,
+                type = SellerNotificationType.DISPUTE_OPENED
+            )
+            notificationsCollection.add(notification).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // Admin-initiated, alongside OrderViewModel.resolveDispute().
+    suspend fun createDisputeResolvedNotification(order: Order, resolution: String): Result<Unit> {
+        return try {
+            val notification = SellerNotification(
+                recipientId = order.sellerId,
+                orderId = order.id,
+                listingName = order.listingName,
+                buyerName = order.buyerName,
+                type = SellerNotificationType.DISPUTE_RESOLVED,
+                resolution = resolution
             )
             notificationsCollection.add(notification).await()
             Result.success(Unit)

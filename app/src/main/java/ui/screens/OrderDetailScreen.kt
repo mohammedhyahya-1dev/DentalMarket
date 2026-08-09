@@ -10,7 +10,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.dentalmarket.app.model.DisputeReason
+import com.dentalmarket.app.model.DisputeStatus
 import com.dentalmarket.app.ui.components.OrderStatusTracker
+import com.dentalmarket.app.viewmodel.DisputeViewModel
 import com.dentalmarket.app.viewmodel.OrderViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -18,15 +21,22 @@ import com.dentalmarket.app.viewmodel.OrderViewModel
 fun OrderDetailScreen(
     orderId: String,
     onBack: () -> Unit,
-    viewModel: OrderViewModel = viewModel()
+    viewModel: OrderViewModel = viewModel(),
+    disputeViewModel: DisputeViewModel = viewModel()
 ) {
     val order = viewModel.selectedOrder.value
     val isLoading = viewModel.isLoadingOrder.value
     val deliveryInfo = viewModel.selectedOrderDeliveryInfo.value
+    val dispute by disputeViewModel.dispute.collectAsState()
+    val disputeErrorMessage by disputeViewModel.errorMessage.collectAsState()
+    var showDisputeDialog by remember { mutableStateOf(false) }
+    var disputeReason by remember { mutableStateOf(DisputeReason.NOT_DELIVERED) }
+    var disputeDetails by remember { mutableStateOf("") }
 
     LaunchedEffect(orderId) {
         viewModel.loadOrder(orderId)
         viewModel.loadOrderDeliveryInfo(orderId)
+        disputeViewModel.loadDispute(orderId)
     }
 
     Scaffold(
@@ -70,6 +80,24 @@ fun OrderDetailScreen(
             Spacer(modifier = Modifier.height(16.dp))
             OrderStatusTracker(currentOrder.status, compact = false)
 
+            val currentDispute = dispute
+            Spacer(modifier = Modifier.height(20.dp))
+            if (currentDispute != null) {
+                Text(
+                    "Dispute status: " + (DisputeStatus.entries.find { it.name == currentDispute.status }?.label
+                        ?: currentDispute.status),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error
+                )
+            } else if (currentOrder.paymentStatus == "VERIFIED") {
+                OutlinedButton(
+                    onClick = { showDisputeDialog = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Report a Problem")
+                }
+            }
+
             Spacer(modifier = Modifier.height(28.dp))
             HorizontalDivider()
             Spacer(modifier = Modifier.height(16.dp))
@@ -101,6 +129,72 @@ fun OrderDetailScreen(
             Spacer(modifier = Modifier.height(12.dp))
             Text("Delivery Contact Phone", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.outline)
             Text(deliveryInfo?.deliveryContactPhone ?: "…", style = MaterialTheme.typography.bodyLarge)
+
+            if (showDisputeDialog) {
+                var reasonExpanded by remember { mutableStateOf(false) }
+                AlertDialog(
+                    onDismissRequest = { showDisputeDialog = false; disputeViewModel.clearError() },
+                    title = { Text("Report a Problem") },
+                    text = {
+                        Column {
+                            ExposedDropdownMenuBox(
+                                expanded = reasonExpanded,
+                                onExpandedChange = { reasonExpanded = it }
+                            ) {
+                                OutlinedTextField(
+                                    value = disputeReason.label,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text("Reason") },
+                                    modifier = Modifier.fillMaxWidth().menuAnchor()
+                                )
+                                ExposedDropdownMenu(
+                                    expanded = reasonExpanded,
+                                    onDismissRequest = { reasonExpanded = false }
+                                ) {
+                                    DisputeReason.entries.forEach { r ->
+                                        DropdownMenuItem(
+                                            text = { Text(r.label) },
+                                            onClick = {
+                                                disputeReason = r
+                                                reasonExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            OutlinedTextField(
+                                value = disputeDetails,
+                                onValueChange = { disputeDetails = it },
+                                label = { Text("Details (optional)") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            disputeErrorMessage?.let {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                disputeViewModel.fileDispute(currentOrder, disputeReason, disputeDetails) {
+                                    showDisputeDialog = false
+                                    disputeDetails = ""
+                                }
+                            }
+                        ) {
+                            Text("Submit")
+                        }
+                    },
+                    dismissButton = {
+                        OutlinedButton(onClick = { showDisputeDialog = false; disputeViewModel.clearError() }) {
+                            Text("Cancel")
+                        }
+                    }
+                )
+            }
         }
     }
 }

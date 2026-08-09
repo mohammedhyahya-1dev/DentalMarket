@@ -43,6 +43,21 @@ class OrderViewModelTest {
     }
 
     @Test
+    fun `an open dispute blocks DELIVERED to PAID_TO_SELLER`() {
+        assertNull(nextOrderStatus("DELIVERED", "VERIFIED", "DENTALMARKET_DELIVERS", hasOpenDispute = true))
+        assertEquals(
+            "PAID_TO_SELLER",
+            nextOrderStatus("DELIVERED", "VERIFIED", "DENTALMARKET_DELIVERS", hasOpenDispute = false)
+        )
+    }
+
+    @Test
+    fun `an open dispute does not affect earlier pipeline stages`() {
+        assertEquals("PICKED_UP", nextOrderStatus("PLACED", "VERIFIED", "DENTALMARKET_DELIVERS", hasOpenDispute = true))
+        assertEquals("DELIVERED", nextOrderStatus("PICKED_UP", "VERIFIED", "DENTALMARKET_DELIVERS", hasOpenDispute = true))
+    }
+
+    @Test
     fun `delivery method does not affect other transitions`() {
         assertEquals("PICKED_UP", nextOrderStatus("PLACED", "VERIFIED", "SELLER_DELIVERS"))
         assertEquals("PAID_TO_SELLER", nextOrderStatus("DELIVERED", "VERIFIED", "SELLER_DELIVERS"))

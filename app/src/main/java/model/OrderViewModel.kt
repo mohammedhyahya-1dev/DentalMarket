@@ -4,9 +4,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dentalmarket.app.data.AuthRepository
+import com.dentalmarket.app.data.DisputeRepository
 import com.dentalmarket.app.data.OrderDeliveryInfoRepository
 import com.dentalmarket.app.data.OrderRepository
 import com.dentalmarket.app.data.SellerNotificationRepository
+import com.dentalmarket.app.model.Dispute
 import com.dentalmarket.app.model.Order
 import com.dentalmarket.app.model.OrderDeliveryInfo
 import kotlinx.coroutines.launch
@@ -16,6 +18,7 @@ class OrderViewModel : ViewModel() {
     private val authRepository = AuthRepository()
     private val notificationRepository = SellerNotificationRepository()
     private val deliveryInfoRepository = OrderDeliveryInfoRepository()
+    private val disputeRepository = DisputeRepository()
 
     var orders = mutableStateOf<List<Order>>(emptyList())
     var isLoading = mutableStateOf(false)
@@ -28,6 +31,11 @@ class OrderViewModel : ViewModel() {
     // — loaded once alongside loadAllOrders() rather than per-card, so a
     // list of many orders doesn't fire one query per order.
     var deliveryInfoByOrderId = mutableStateOf<Map<String, OrderDeliveryInfo>>(emptyMap())
+
+    // Same batching pattern, for the dispute banner/resolve buttons on
+    // AdminOrderCard and for gating the DELIVERED -> PAID_TO_SELLER advance
+    // button via nextOrderStatus()'s hasOpenDispute parameter.
+    var disputeByOrderId = mutableStateOf<Map<String, Dispute>>(emptyMap())
 
     // OrderDetailScreen's single-order delivery info (the buyer's own order).
     var selectedOrderDeliveryInfo = mutableStateOf<OrderDeliveryInfo?>(null)
@@ -89,6 +97,7 @@ class OrderViewModel : ViewModel() {
             result.onSuccess { loadedOrders ->
                 orders.value = loadedOrders
                 loadDeliveryInfoForOrders(loadedOrders.map { it.id })
+                loadDisputesForOrders(loadedOrders.map { it.id })
             }
             result.onFailure { errorMessage.value = it.message }
         }
@@ -101,14 +110,38 @@ class OrderViewModel : ViewModel() {
         }
     }
 
+    private fun loadDisputesForOrders(orderIds: List<String>) {
+        viewModelScope.launch {
+            disputeRepository.getDisputesForOrders(orderIds)
+                .onSuccess { disputeByOrderId.value = it }
+        }
+    }
+
     // Moves an order to the next step in the fulfillment pipeline. The
     // admin UI already hides this button when nextOrderStatus() would
     // return null, but the check is repeated here too, same defense-in-depth
-    // as everywhere else in this app.
+    // as everywhere else in this app. firestore.rules is what actually
+    // enforces the dispute block server-side — this is just so the button
+    // doesn't even try.
     fun advanceStatus(order: Order) {
-        val next = nextOrderStatus(order.status, order.paymentStatus, order.deliveryMethod) ?: return
+        val hasOpenDispute = disputeByOrderId.value[order.id]?.status == "OPEN"
+        val next = nextOrderStatus(order.status, order.paymentStatus, order.deliveryMethod, hasOpenDispute) ?: return
         viewModelScope.launch {
             repository.updateOrderStatus(order.id, next)
+            loadAllOrders()
+        }
+    }
+
+    // Admin resolving a dispute — lifts the DELIVERED -> PAID_TO_SELLER
+    // block (see hasOpenDispute above) without touching the order itself;
+    // admin still has to press "Advance to Next Stage" separately, same
+    // manual-nothing-automated approach as payment verification.
+    fun resolveDispute(order: Order, newStatus: String) {
+        viewModelScope.launch {
+            disputeRepository.resolveDispute(order.id, newStatus)
+                .onSuccess {
+                    notificationRepository.createDisputeResolvedNotification(order, newStatus)
+                }
             loadAllOrders()
         }
     }
@@ -175,12 +208,19 @@ class OrderViewModel : ViewModel() {
 // (PLACED -> PICKED_UP requires a verified payment; PICKED_UP -> DELIVERED
 // is blocked for the admin/advance-button path when the buyer chose
 // SELLER_DELIVERS, since that transition can only come from the buyer's own
-// confirmDelivery() action instead).
-fun nextOrderStatus(currentStatus: String, paymentStatus: String, deliveryMethod: String): String? {
+// confirmDelivery() action instead; DELIVERED -> PAID_TO_SELLER is blocked
+// while hasOpenDispute, mirroring the same guard firestore.rules enforces
+// server-side).
+fun nextOrderStatus(
+    currentStatus: String,
+    paymentStatus: String,
+    deliveryMethod: String,
+    hasOpenDispute: Boolean = false
+): String? {
     return when (currentStatus) {
         "PLACED" -> if (paymentStatus == "VERIFIED") "PICKED_UP" else null
         "PICKED_UP" -> if (deliveryMethod == "DENTALMARKET_DELIVERS") "DELIVERED" else null
-        "DELIVERED" -> "PAID_TO_SELLER"
+        "DELIVERED" -> if (!hasOpenDispute) "PAID_TO_SELLER" else null
         else -> null
     }
 }

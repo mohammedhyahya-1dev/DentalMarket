@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dentalmarket.app.model.SellerNotification
+import com.dentalmarket.app.model.SellerNotificationType
 import com.dentalmarket.app.viewmodel.NotificationViewModel
 import java.text.DateFormat
 import java.util.Date
@@ -86,9 +87,27 @@ private fun NotificationCard(notification: SellerNotification) {
                 color = MaterialTheme.colorScheme.outline
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Text("Buyer: ${notification.buyerName}", style = MaterialTheme.typography.bodyMedium)
-            Text("Deliver to: ${notification.deliveryAddress}", style = MaterialTheme.typography.bodyMedium)
-            Text("Contact: ${notification.deliveryContactPhone}", style = MaterialTheme.typography.bodyMedium)
+            when (notification.type) {
+                SellerNotificationType.DISPUTE_OPENED -> Text(
+                    "A dispute has been filed on this order. The payout is on hold until DentalMarket resolves it.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                SellerNotificationType.DISPUTE_RESOLVED -> Text(
+                    disputeResolvedMessage(notification.resolution),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                else -> {
+                    Text("Buyer: ${notification.buyerName}", style = MaterialTheme.typography.bodyMedium)
+                    Text("Deliver to: ${notification.deliveryAddress}", style = MaterialTheme.typography.bodyMedium)
+                    Text("Contact: ${notification.deliveryContactPhone}", style = MaterialTheme.typography.bodyMedium)
+                }
+            }
         }
     }
+}
+
+private fun disputeResolvedMessage(resolution: String): String = when (resolution) {
+    "RESOLVED_SELLER" -> "The dispute on this order has been resolved in your favor. The payout will proceed as normal."
+    "RESOLVED_BUYER" -> "The dispute on this order has been resolved in the buyer's favor. This order will not proceed to payout."
+    else -> "The dispute on this order has been dismissed. The payout will proceed as normal."
 }
