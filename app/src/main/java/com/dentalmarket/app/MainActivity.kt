@@ -84,7 +84,12 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
     val inquiryViewModel: InquiryViewModel = viewModel()
     val authViewModel: AuthViewModel = viewModel()
 
-    val startDestination = if (authViewModel.isLoggedIn) "authGate" else "login"
+    // Always starts at authGate now — a brand-new install has no Firebase
+    // session at all, and authGate's own LaunchedEffect below silently
+    // creates an anonymous one instead of routing to "login". "login"
+    // itself is still reachable, just never as the start destination — see
+    // GuestSignInPrompt's onRequireLogin wiring across every gated screen.
+    val startDestination = "authGate"
 
     LaunchedEffect(deepLinkUri) {
         val code = deepLinkUri?.getQueryParameter("oobCode")
@@ -97,7 +102,7 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
         composable("authGate") {
             val context = LocalContext.current
             LaunchedEffect(Unit) {
-                if (authViewModel.isAnonymous) {
+                fun proceedAsGuest() {
                     // Guests have no profile doc to check — skip straight to
                     // the same notification-prompt-or-marketplace branch a
                     // completed profile would take.
@@ -105,15 +110,35 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
                     navController.navigate(destination) {
                         popUpTo("authGate") { inclusive = true }
                     }
-                } else {
-                    authViewModel.checkProfileComplete { complete ->
-                        val destination = when {
-                            !complete -> "completeProfile"
-                            shouldShowNotificationPrompt(context) -> "notificationPermission"
-                            else -> "marketplace"
-                        }
-                        navController.navigate(destination) {
-                            popUpTo("authGate") { inclusive = true }
+                }
+                when {
+                    !authViewModel.isLoggedIn -> {
+                        // No Firebase session at all — brand-new install, or
+                        // right after an explicit sign-out. Silently create an
+                        // anonymous one instead of showing a login wall.
+                        authViewModel.continueAsGuest(
+                            onSuccess = { proceedAsGuest() },
+                            onFailure = {
+                                // No network, or Firebase rejected it — don't
+                                // strand the user on an infinite spinner; give
+                                // them a manual retry surface instead.
+                                navController.navigate("login") {
+                                    popUpTo("authGate") { inclusive = true }
+                                }
+                            }
+                        )
+                    }
+                    authViewModel.isAnonymous -> proceedAsGuest()
+                    else -> {
+                        authViewModel.checkProfileComplete { complete ->
+                            val destination = when {
+                                !complete -> "completeProfile"
+                                shouldShowNotificationPrompt(context) -> "notificationPermission"
+                                else -> "marketplace"
+                            }
+                            navController.navigate(destination) {
+                                popUpTo("authGate") { inclusive = true }
+                            }
                         }
                     }
                 }
@@ -125,11 +150,16 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
         composable("login") {
             LoginScreen(
                 authViewModel = authViewModel,
-                onLoginSuccess = {
-                    // Covers every path that lands here: normal login, signup,
-                    // guest skip, and guest-upgrade linking — none of those
-                    // should carry over whatever was in the cart before.
-                    cartViewModel.clearCart()
+                onLoginSuccess = { sameAccount ->
+                    // Only a genuine account switch (fresh login/signup, or a
+                    // collision fallback into a different existing account)
+                    // should drop the cart — a guest-upgrade link keeps the
+                    // same uid, and "browse then sign up to buy" is the
+                    // normal flow now, so wiping the cart right at that
+                    // moment would cost a sale.
+                    if (!sameAccount) {
+                        cartViewModel.clearCart()
+                    }
                     navController.navigate("authGate") {
                         popUpTo("login") { inclusive = true }
                     }
@@ -164,7 +194,9 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
                 onSignOut = {
                     authViewModel.signOut()
                     cartViewModel.clearCart()
-                    navController.navigate("login") {
+                    // authGate silently re-guests (see its LaunchedEffect)
+                    // instead of dropping the user on a login wall.
+                    navController.navigate("authGate") {
                         popUpTo(0) { inclusive = true }
                     }
                 }
@@ -250,7 +282,9 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
                     onSignOut = {
                         authViewModel.signOut()
                         cartViewModel.clearCart()
-                        navController.navigate("login") {
+                        // authGate silently re-guests (see its LaunchedEffect)
+                        // instead of dropping the user on a login wall.
+                        navController.navigate("authGate") {
                             popUpTo(0) { inclusive = true }
                         }
                     },

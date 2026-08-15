@@ -29,13 +29,16 @@ class AuthViewModel : ViewModel() {
     val isAnonymous: Boolean
         get() = repository.isAnonymous
 
-    fun continueAsGuest(onSuccess: () -> Unit) {
+    fun continueAsGuest(onSuccess: () -> Unit, onFailure: () -> Unit = {}) {
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
             repository.signInAnonymously()
                 .onSuccess { onSuccess() }
-                .onFailure { _errorMessage.value = it.message ?: "Failed to continue as guest" }
+                .onFailure {
+                    _errorMessage.value = it.message ?: "Failed to continue as guest"
+                    onFailure()
+                }
             _isLoading.value = false
         }
     }
@@ -73,7 +76,11 @@ class AuthViewModel : ViewModel() {
             _isLoading.value = false
         }
     }
-    fun logInOrSignUp(email: String, password: String, onSuccess: () -> Unit) {
+    // onSuccess reports whether the resulting session is the same account
+    // that was signed in before this call (true for a guest-upgrade link,
+    // false for a fresh sign-in/signup or a collision fallback) — see
+    // AuthRepository.logInOrSignUp.
+    fun logInOrSignUp(email: String, password: String, onSuccess: (sameAccount: Boolean) -> Unit) {
         if (email.isBlank() || password.isBlank()) {
             _errorMessage.value = "Please fill in all fields"
             return
@@ -90,18 +97,19 @@ class AuthViewModel : ViewModel() {
             _isLoading.value = true
             _errorMessage.value = null
             repository.logInOrSignUp(email, password)
-                .onSuccess { onSuccess() }
+                .onSuccess { sameAccount -> onSuccess(sameAccount) }
                 .onFailure { _errorMessage.value = it.message ?: "Sign in failed" }
             _isLoading.value = false
         }
     }
 
-    fun signInWithGoogle(idToken: String, onSuccess: () -> Unit) {
+    // Same sameAccount-flag contract as logInOrSignUp above.
+    fun signInWithGoogle(idToken: String, onSuccess: (sameAccount: Boolean) -> Unit) {
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
             repository.signInWithGoogleIdToken(idToken)
-                .onSuccess { onSuccess() }
+                .onSuccess { sameAccount -> onSuccess(sameAccount) }
                 .onFailure { _errorMessage.value = it.message ?: "Google sign-in failed" }
             _isLoading.value = false
         }

@@ -71,7 +71,11 @@ class AuthRepository {
         }
     }
 
-    suspend fun logInOrSignUp(email: String, password: String): Result<Unit> {
+    // Result carries whether the session after this call is the SAME account
+    // as before (true only for the link-succeeded branch, which preserves the
+    // guest's uid) vs a different or brand-new one (false) — callers use this
+    // to decide whether an in-progress guest cart should survive the call.
+    suspend fun logInOrSignUp(email: String, password: String): Result<Boolean> {
         val guestUser = auth.currentUser?.takeIf { it.isAnonymous }
         if (guestUser != null) {
             return try {
@@ -94,7 +98,7 @@ class AuthRepository {
                     val user = DentalUser(uid = linkedUser.uid, name = "", email = email)
                     firestore.collection("users").document(linkedUser.uid).set(user).awaitResult()
                     linkedUser.sendEmailVerification().awaitResult()
-                    Result.success(Unit)
+                    Result.success(true)
                 }
             } catch (collisionError: FirebaseAuthUserCollisionException) {
                 // This email already belongs to a real account — sign into
@@ -103,7 +107,7 @@ class AuthRepository {
                 // restricted action is gated in the UI), so nothing is lost.
                 try {
                     auth.signInWithEmailAndPassword(email, password).awaitResult()
-                    Result.success(Unit)
+                    Result.success(false)
                 } catch (signInError: Exception) {
                     Result.failure(Exception("Incorrect password. Please try again."))
                 }
@@ -114,7 +118,7 @@ class AuthRepository {
 
         return try {
             auth.signInWithEmailAndPassword(email, password).awaitResult()
-            Result.success(Unit)
+            Result.success(false)
         } catch (e: FirebaseAuthInvalidCredentialsException) {
             try {
                 val authResult = auth.createUserWithEmailAndPassword(email, password).awaitResult()
@@ -136,7 +140,7 @@ class AuthRepository {
                     val user = DentalUser(uid = newUser.uid, name = "", email = email)
                     firestore.collection("users").document(newUser.uid).set(user).awaitResult()
                     newUser.sendEmailVerification().awaitResult()
-                    Result.success(Unit)
+                    Result.success(false)
                 }
             } catch (collisionError: FirebaseAuthUserCollisionException) {
                 Result.failure(Exception("Incorrect password. Please try again."))
@@ -156,7 +160,8 @@ class AuthRepository {
         return hasMinLength && hasUppercase && hasNumber && hasSpecialChar
     }
 
-    suspend fun signInWithGoogleIdToken(idToken: String): Result<Unit> {
+    // Same sameAccount-flag contract as logInOrSignUp above.
+    suspend fun signInWithGoogleIdToken(idToken: String): Result<Boolean> {
         val firebaseCredential = GoogleAuthProvider.getCredential(idToken, null)
         val guestUser = auth.currentUser?.takeIf { it.isAnonymous }
 
@@ -180,7 +185,9 @@ class AuthRepository {
                 firestore.collection("users").document(user.uid).set(newUser).awaitResult()
             }
 
-            Result.success(Unit)
+            // Reaching here with guestUser != null means linkWithCredential
+            // above succeeded (no collision thrown) — same uid preserved.
+            Result.success(guestUser != null)
         } catch (e: FirebaseAuthUserCollisionException) {
             if (guestUser != null) {
                 // This Google account already exists under a different UID —
@@ -198,7 +205,7 @@ class AuthRepository {
                         )
                         firestore.collection("users").document(user.uid).set(newUser).awaitResult()
                     }
-                    Result.success(Unit)
+                    Result.success(false)
                 } catch (signInError: Exception) {
                     Result.failure(signInError)
                 }

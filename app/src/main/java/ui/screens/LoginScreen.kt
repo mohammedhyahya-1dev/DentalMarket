@@ -59,7 +59,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 @Composable
 fun LoginScreen(
     authViewModel: AuthViewModel,
-    onLoginSuccess: () -> Unit
+    onLoginSuccess: (sameAccount: Boolean) -> Unit
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -115,7 +115,9 @@ fun LoginScreen(
                             credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
                         ) {
                             val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
-                            authViewModel.signInWithGoogle(googleIdTokenCredential.idToken) { onLoginSuccess() }
+                            authViewModel.signInWithGoogle(googleIdTokenCredential.idToken) { sameAccount ->
+                                onLoginSuccess(sameAccount)
+                            }
                         }
                     } catch (e: GetCredentialException) {
                         // User cancelled the picker \u2014 safe to ignore
@@ -231,7 +233,9 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(20.dp))
 
         Button(
-            onClick = { authViewModel.logInOrSignUp(email, password) { onLoginSuccess() } },
+            onClick = {
+                authViewModel.logInOrSignUp(email, password) { sameAccount -> onLoginSuccess(sameAccount) }
+            },
             enabled = !isLoading,
             modifier = Modifier
                 .fillMaxWidth()
@@ -247,11 +251,14 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         TextButton(
-            onClick = { authViewModel.continueAsGuest { onLoginSuccess() } },
+            // Guest browsing is already active by the time anyone reaches this
+            // screen (see MainActivity's authGate) — this just dismisses back
+            // to it, so sameAccount = true (no cart-clear, nothing changed).
+            onClick = { authViewModel.continueAsGuest(onSuccess = { onLoginSuccess(true) }) },
             enabled = !isLoading,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Skip for now — browse as guest")
+            Text("Not now")
         }
 
         if (showForgotPasswordDialog) {
