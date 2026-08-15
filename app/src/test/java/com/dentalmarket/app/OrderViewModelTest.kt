@@ -1,6 +1,7 @@
 package com.dentalmarket.app
 
 import com.dentalmarket.app.viewmodel.calculatePayout
+import com.dentalmarket.app.viewmodel.disputeBlocksPayout
 import com.dentalmarket.app.viewmodel.nextOrderStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -44,17 +45,60 @@ class OrderViewModelTest {
 
     @Test
     fun `an open dispute blocks DELIVERED to PAID_TO_SELLER`() {
-        assertNull(nextOrderStatus("DELIVERED", "VERIFIED", "DENTALMARKET_DELIVERS", hasOpenDispute = true))
+        assertNull(nextOrderStatus("DELIVERED", "VERIFIED", "DENTALMARKET_DELIVERS", disputeBlocksPayout = true))
         assertEquals(
             "PAID_TO_SELLER",
-            nextOrderStatus("DELIVERED", "VERIFIED", "DENTALMARKET_DELIVERS", hasOpenDispute = false)
+            nextOrderStatus("DELIVERED", "VERIFIED", "DENTALMARKET_DELIVERS", disputeBlocksPayout = false)
         )
     }
 
     @Test
-    fun `an open dispute does not affect earlier pipeline stages`() {
-        assertEquals("PICKED_UP", nextOrderStatus("PLACED", "VERIFIED", "DENTALMARKET_DELIVERS", hasOpenDispute = true))
-        assertEquals("DELIVERED", nextOrderStatus("PICKED_UP", "VERIFIED", "DENTALMARKET_DELIVERS", hasOpenDispute = true))
+    fun `a dispute does not affect earlier pipeline stages`() {
+        assertEquals(
+            "PICKED_UP",
+            nextOrderStatus("PLACED", "VERIFIED", "DENTALMARKET_DELIVERS", disputeBlocksPayout = true)
+        )
+        assertEquals(
+            "DELIVERED",
+            nextOrderStatus("PICKED_UP", "VERIFIED", "DENTALMARKET_DELIVERS", disputeBlocksPayout = true)
+        )
+    }
+
+    @Test
+    fun `disputeBlocksPayout is true for OPEN and RESOLVED_BUYER, false otherwise`() {
+        assertEquals(true, disputeBlocksPayout("OPEN"))
+        assertEquals(true, disputeBlocksPayout("RESOLVED_BUYER"))
+        assertEquals(false, disputeBlocksPayout("RESOLVED_SELLER"))
+        assertEquals(false, disputeBlocksPayout("DISMISSED"))
+        assertEquals(false, disputeBlocksPayout(null))
+    }
+
+    @Test
+    fun `a dispute resolved RESOLVED_BUYER permanently blocks the payout`() {
+        assertNull(
+            nextOrderStatus(
+                "DELIVERED", "VERIFIED", "DENTALMARKET_DELIVERS",
+                disputeBlocksPayout = disputeBlocksPayout("RESOLVED_BUYER")
+            )
+        )
+    }
+
+    @Test
+    fun `a dispute resolved RESOLVED_SELLER or DISMISSED unblocks the payout`() {
+        assertEquals(
+            "PAID_TO_SELLER",
+            nextOrderStatus(
+                "DELIVERED", "VERIFIED", "DENTALMARKET_DELIVERS",
+                disputeBlocksPayout = disputeBlocksPayout("RESOLVED_SELLER")
+            )
+        )
+        assertEquals(
+            "PAID_TO_SELLER",
+            nextOrderStatus(
+                "DELIVERED", "VERIFIED", "DENTALMARKET_DELIVERS",
+                disputeBlocksPayout = disputeBlocksPayout("DISMISSED")
+            )
+        )
     }
 
     @Test

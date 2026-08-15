@@ -20,6 +20,7 @@ import com.dentalmarket.app.model.OrderDeliveryInfo
 import com.dentalmarket.app.ui.components.PaymentStatusBadge
 import com.dentalmarket.app.viewmodel.OrderViewModel
 import com.dentalmarket.app.viewmodel.calculatePayout
+import com.dentalmarket.app.viewmodel.disputeBlocksPayout
 import com.dentalmarket.app.viewmodel.nextOrderStatus
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -173,8 +174,8 @@ fun AdminOrderCard(
                 DisputeBanner(dispute = dispute, onResolve = onResolveDispute)
             }
 
-            val hasOpenDispute = dispute?.status == "OPEN"
-            if (nextOrderStatus(order.status, order.paymentStatus, order.deliveryMethod, hasOpenDispute) != null) {
+            val blocksPayout = disputeBlocksPayout(dispute?.status)
+            if (nextOrderStatus(order.status, order.paymentStatus, order.deliveryMethod, blocksPayout) != null) {
                 Spacer(modifier = Modifier.height(10.dp))
                 Button(onClick = onAdvance, modifier = Modifier.fillMaxWidth()) {
                     Text("Advance to Next Stage")
@@ -186,7 +187,7 @@ fun AdminOrderCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline
                 )
-            } else if (order.status == "DELIVERED" && hasOpenDispute) {
+            } else if (order.status == "DELIVERED" && blocksPayout) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     "Payout on hold until this dispute is resolved",

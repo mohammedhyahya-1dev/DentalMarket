@@ -34,7 +34,8 @@ class OrderViewModel : ViewModel() {
 
     // Same batching pattern, for the dispute banner/resolve buttons on
     // AdminOrderCard and for gating the DELIVERED -> PAID_TO_SELLER advance
-    // button via nextOrderStatus()'s hasOpenDispute parameter.
+    // button via disputeBlocksPayout() + nextOrderStatus()'s
+    // disputeBlocksPayout parameter.
     var disputeByOrderId = mutableStateOf<Map<String, Dispute>>(emptyMap())
 
     // OrderDetailScreen's single-order delivery info (the buyer's own order).
@@ -124,8 +125,8 @@ class OrderViewModel : ViewModel() {
     // enforces the dispute block server-side — this is just so the button
     // doesn't even try.
     fun advanceStatus(order: Order) {
-        val hasOpenDispute = disputeByOrderId.value[order.id]?.status == "OPEN"
-        val next = nextOrderStatus(order.status, order.paymentStatus, order.deliveryMethod, hasOpenDispute) ?: return
+        val blocksPayout = disputeBlocksPayout(disputeByOrderId.value[order.id]?.status)
+        val next = nextOrderStatus(order.status, order.paymentStatus, order.deliveryMethod, blocksPayout) ?: return
         viewModelScope.launch {
             repository.updateOrderStatus(order.id, next)
             loadAllOrders()
@@ -133,9 +134,11 @@ class OrderViewModel : ViewModel() {
     }
 
     // Admin resolving a dispute — lifts the DELIVERED -> PAID_TO_SELLER
-    // block (see hasOpenDispute above) without touching the order itself;
-    // admin still has to press "Advance to Next Stage" separately, same
-    // manual-nothing-automated approach as payment verification.
+    // block (see disputeBlocksPayout above) unless resolved RESOLVED_BUYER,
+    // which blocks it permanently, without touching the order itself; admin
+    // still has to press "Advance to Next Stage" separately (when that's
+    // even possible), same manual-nothing-automated approach as payment
+    // verification.
     fun resolveDispute(order: Order, newStatus: String) {
         viewModelScope.launch {
             disputeRepository.resolveDispute(order.id, newStatus)
@@ -202,6 +205,14 @@ class OrderViewModel : ViewModel() {
     }
 }
 
+// Single source of truth for which dispute outcomes block payout, mirrored
+// exactly by firestore.rules' disputeBlocksPayout() — keep the two in sync
+// if this ever changes. OPEN blocks pending resolution; RESOLVED_BUYER
+// blocks permanently, since that outcome means this order should never pay
+// out. RESOLVED_SELLER and DISMISSED (and no dispute at all) don't block.
+fun disputeBlocksPayout(disputeStatus: String?): Boolean =
+    disputeStatus == "OPEN" || disputeStatus == "RESOLVED_BUYER"
+
 // Pure decision function for the fulfillment pipeline, kept free of any
 // Firebase/ViewModel dependency so it's directly unit-testable. Returns null
 // when there's no next step (terminal status) or the step is blocked
@@ -209,18 +220,18 @@ class OrderViewModel : ViewModel() {
 // is blocked for the admin/advance-button path when the buyer chose
 // SELLER_DELIVERS, since that transition can only come from the buyer's own
 // confirmDelivery() action instead; DELIVERED -> PAID_TO_SELLER is blocked
-// while hasOpenDispute, mirroring the same guard firestore.rules enforces
-// server-side).
+// while disputeBlocksPayout, mirroring the same guard firestore.rules
+// enforces server-side).
 fun nextOrderStatus(
     currentStatus: String,
     paymentStatus: String,
     deliveryMethod: String,
-    hasOpenDispute: Boolean = false
+    disputeBlocksPayout: Boolean = false
 ): String? {
     return when (currentStatus) {
         "PLACED" -> if (paymentStatus == "VERIFIED") "PICKED_UP" else null
         "PICKED_UP" -> if (deliveryMethod == "DENTALMARKET_DELIVERS") "DELIVERED" else null
-        "DELIVERED" -> if (!hasOpenDispute) "PAID_TO_SELLER" else null
+        "DELIVERED" -> if (!disputeBlocksPayout) "PAID_TO_SELLER" else null
         else -> null
     }
 }
