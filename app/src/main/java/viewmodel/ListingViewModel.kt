@@ -73,6 +73,30 @@ class ListingViewModel : ViewModel() {
     var errorMessage = mutableStateOf<String?>(null)
     var postSuccess = mutableStateOf(false)
 
+    // Shown instead of posting/saving when postListing() finds the account
+    // isn't verified — see the fresh check inside postListing() below.
+    var showVerifyEmailPrompt = mutableStateOf(false)
+    var isResendingVerification = mutableStateOf(false)
+    var resendVerificationSuccess = mutableStateOf(false)
+    var resendVerificationError = mutableStateOf<String?>(null)
+
+    fun resendVerificationEmail() {
+        viewModelScope.launch {
+            isResendingVerification.value = true
+            resendVerificationError.value = null
+            authRepository.resendVerificationEmail()
+                .onSuccess { resendVerificationSuccess.value = true }
+                .onFailure { resendVerificationError.value = it.message ?: "Failed to resend verification email" }
+            isResendingVerification.value = false
+        }
+    }
+
+    fun dismissVerifyEmailPrompt() {
+        showVerifyEmailPrompt.value = false
+        resendVerificationSuccess.value = false
+        resendVerificationError.value = null
+    }
+
     // When editing, these hold the parts of the original listing the form
     // doesn't show, so saving changes doesn't wipe them out.
     private var editingListingId: String? = null
@@ -125,6 +149,17 @@ class ListingViewModel : ViewModel() {
         val editingId = editingListingId
 
         viewModelScope.launch {
+            val verifiedResult = authRepository.isEmailVerifiedFresh()
+            if (verifiedResult.getOrNull() != true) {
+                isLoading.value = false
+                if (verifiedResult.isFailure) {
+                    errorMessage.value = "Couldn't verify your account — check your connection and try again."
+                } else {
+                    showVerifyEmailPrompt.value = true
+                }
+                return@launch
+            }
+
             if (editingId != null) {
                 val listing = Listing(
                     id = editingId,

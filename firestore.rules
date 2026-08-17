@@ -18,6 +18,16 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.firebase.sign_in_provider != 'anonymous';
     }
 
+    // Backstop for the Sell and Checkout gates (see ListingViewModel.postListing
+    // and CartViewModel.checkout, which both force-refresh the ID token via
+    // AuthRepository.isEmailVerifiedFresh() right before writing, so this
+    // claim reflects the same fresh state those client-side checks saw).
+    // Anonymous users have no email at all, so this is false for them too —
+    // no need to separately layer isNotGuest() alongside it.
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
     function isAdmin() {
       return isSignedIn() && request.auth.token.email in ['p.mohammed.h.yahya@gmail.com'];
     }
@@ -71,10 +81,15 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // listings/{id}: marketplace inventory, owned by sellerId.
+    // listings/{id}: marketplace inventory, owned by sellerId. Posting and
+    // editing both require a verified email (see ListingViewModel.postListing,
+    // isEmailVerified() above) — a seller with unverified contact info isn't
+    // someone buyers should be trusting money to. Applies to both create and
+    // the owner's own update branch below, not to admin (privileged) or the
+    // buyer/viewCount branches, which aren't "the seller editing their listing".
     match /listings/{listingId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.sellerId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.sellerId == request.auth.uid && isEmailVerified();
       // The owner or admin can change anything. A buyer who isn't the owner
       // can only flip an AVAILABLE listing to SOLD (nothing else) — this is
       // what CartViewModel.checkout() does right after placing an order, and
@@ -86,7 +101,7 @@ service cloud.firestore {
       // something that needs to be tamper-proof, and there's no -1 since
       // views are never undone.
       allow update: if isSignedIn() &&
-        (resource.data.sellerId == request.auth.uid ||
+        ((resource.data.sellerId == request.auth.uid && isEmailVerified()) ||
          isAdmin() ||
          (resource.data.status == 'AVAILABLE' &&
           request.resource.data.status == 'SOLD' &&
@@ -102,9 +117,12 @@ service cloud.firestore {
     // exclusively admin- or buyer-driven, unchanged by adding this read path.
     // Delivery address/phone are NOT on this document (see
     // orderDeliveryInfo/{orderId} below) specifically so this seller read
-    // path can never expose them.
+    // path can never expose them. Placing an order also requires a verified
+    // email (see CartViewModel.checkout(), isEmailVerified() above) — same
+    // reasoning as listings: real money is moving, so the account behind it
+    // needs a reachable, verified contact.
     match /orders/{orderId} {
-      allow create: if isSignedIn() && request.resource.data.buyerId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.buyerId == request.auth.uid && isEmailVerified();
       allow get: if isSignedIn() &&
         (resource.data.buyerId == request.auth.uid ||
          resource.data.sellerId == request.auth.uid ||

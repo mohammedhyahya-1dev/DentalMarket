@@ -33,6 +33,30 @@ class CartViewModel : ViewModel() {
     var orderPlacedSuccess = mutableStateOf(false)
     var orderErrorMessage = mutableStateOf<String?>(null)
 
+    // Shown instead of placing the order when checkout() finds the account
+    // isn't verified — see the fresh check inside checkout() below.
+    var showVerifyEmailPrompt = mutableStateOf(false)
+    var isResendingVerification = mutableStateOf(false)
+    var resendVerificationSuccess = mutableStateOf(false)
+    var resendVerificationError = mutableStateOf<String?>(null)
+
+    fun resendVerificationEmail() {
+        viewModelScope.launch {
+            isResendingVerification.value = true
+            resendVerificationError.value = null
+            authRepository.resendVerificationEmail()
+                .onSuccess { resendVerificationSuccess.value = true }
+                .onFailure { resendVerificationError.value = it.message ?: "Failed to resend verification email" }
+            isResendingVerification.value = false
+        }
+    }
+
+    fun dismissVerifyEmailPrompt() {
+        showVerifyEmailPrompt.value = false
+        resendVerificationSuccess.value = false
+        resendVerificationError.value = null
+    }
+
     // The orders just created by checkout(), each with its real Firestore
     // id — CartScreen uses this to queue up a payment reference prompt per
     // order immediately, instead of the buyer having to find each one
@@ -162,6 +186,17 @@ class CartViewModel : ViewModel() {
         orderErrorMessage.value = null
 
         viewModelScope.launch {
+            val verifiedResult = authRepository.isEmailVerifiedFresh()
+            if (verifiedResult.getOrNull() != true) {
+                isPlacingOrder.value = false
+                if (verifiedResult.isFailure) {
+                    orderErrorMessage.value = "Couldn't verify your account — check your connection and try again."
+                } else {
+                    showVerifyEmailPrompt.value = true
+                }
+                return@launch
+            }
+
             val profileResult = authRepository.getCurrentUserProfile()
             val buyerName = profileResult.getOrNull()?.name ?: "Unknown Buyer"
             val commissionPercentage = commissionConfigRepository.getCommissionConfig()

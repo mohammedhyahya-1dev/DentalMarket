@@ -10,6 +10,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dentalmarket.app.model.Condition
 import com.dentalmarket.app.model.DeviceCategory
+import com.dentalmarket.app.ui.components.VerifyEmailPrompt
 import com.dentalmarket.app.viewmodel.ListingViewModel
 import com.dentalmarket.app.viewmodel.calculatePayout
 import androidx.compose.material.icons.Icons
@@ -228,5 +229,16 @@ fun SellScreen(
                 }
             )
         }
+    }
+
+    if (viewModel.showVerifyEmailPrompt.value) {
+        VerifyEmailPrompt(
+            actionLabel = "selling",
+            isResending = viewModel.isResendingVerification.value,
+            resendSuccess = viewModel.resendVerificationSuccess.value,
+            resendError = viewModel.resendVerificationError.value,
+            onDismiss = { viewModel.dismissVerifyEmailPrompt() },
+            onResend = { viewModel.resendVerificationEmail() }
+        )
     }
 }

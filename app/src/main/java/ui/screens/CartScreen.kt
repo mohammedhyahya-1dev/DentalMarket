@@ -41,6 +41,7 @@ import com.dentalmarket.app.model.PaymentConfig
 import com.dentalmarket.app.ui.components.CartItemRow
 import com.dentalmarket.app.ui.components.GuestSignInPrompt
 import com.dentalmarket.app.ui.components.PaymentReferenceDialog
+import com.dentalmarket.app.ui.components.VerifyEmailPrompt
 import com.dentalmarket.app.ui.theme.WarmAmber
 import com.dentalmarket.app.viewmodel.CartViewModel
 import com.dentalmarket.app.viewmodel.OrderViewModel
@@ -200,6 +201,17 @@ fun CartScreen(
                 showGuestPrompt = false
                 onRequireLogin()
             }
+        )
+    }
+
+    if (cartViewModel.showVerifyEmailPrompt.value) {
+        VerifyEmailPrompt(
+            actionLabel = "checking out",
+            isResending = cartViewModel.isResendingVerification.value,
+            resendSuccess = cartViewModel.resendVerificationSuccess.value,
+            resendError = cartViewModel.resendVerificationError.value,
+            onDismiss = { cartViewModel.dismissVerifyEmailPrompt() },
+            onResend = { cartViewModel.resendVerificationEmail() }
         )
     }
 

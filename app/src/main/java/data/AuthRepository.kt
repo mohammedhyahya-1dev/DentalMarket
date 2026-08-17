@@ -1,6 +1,7 @@
 package com.dentalmarket.app.data
 
 import com.dentalmarket.app.model.DentalUser
+import com.google.firebase.FirebaseTooManyRequestsException
 import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -33,6 +34,24 @@ class AuthRepository {
     // clicked the link in their inbox).
     val isEmailVerified: Boolean
         get() = auth.currentUser?.isEmailVerified ?: false
+
+    // For gates that act on the result (Sell, Checkout) rather than just
+    // displaying it (Profile). reload() alone refreshes the cached
+    // FirebaseUser so isEmailVerified is accurate, but firestore.rules
+    // reads request.auth.token.email_verified from the ID token, which
+    // isn't reissued by reload() and can otherwise lag up to ~an hour
+    // behind — getIdToken(true) forces that reissue too, so the write that
+    // follows this check actually carries the fresh claim.
+    suspend fun isEmailVerifiedFresh(): Result<Boolean> {
+        return try {
+            val user = auth.currentUser ?: return Result.success(false)
+            user.reload().awaitResult()
+            user.getIdToken(true).awaitResult()
+            Result.success(user.isEmailVerified)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 
     suspend fun signUp(name: String, email: String, password: String): Result<Unit> {
         return try {
@@ -285,6 +304,8 @@ class AuthRepository {
         return try {
             auth.currentUser?.sendEmailVerification()?.awaitResult()
             Result.success(Unit)
+        } catch (e: FirebaseTooManyRequestsException) {
+            Result.failure(Exception("You've requested this recently — please wait a bit before trying again."))
         } catch (e: Exception) {
             Result.failure(e)
         }
