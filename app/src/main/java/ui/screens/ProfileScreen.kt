@@ -117,7 +117,8 @@ fun ProfileScreen(
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    "Check your inbox for a verification link, or resend it below.",
+                                    "Check your inbox for a verification link (check your Spam folder " +
+                                        "if you don't see it), or resend it below.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = Color(0xFF9A3412)
                                 )

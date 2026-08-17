@@ -30,7 +30,10 @@ fun VerifyEmailPrompt(
         title = { Text("Verify your email") },
         text = {
             Column {
-                Text("Please verify your email before $actionLabel. Check your inbox for the link, or resend it below.")
+                Text(
+                    "Please verify your email before $actionLabel. Check your inbox for the link " +
+                        "(check your Spam folder if you don't see it), or resend it below."
+                )
                 if (resendSuccess) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("Verification email sent ✓", color = MaterialTheme.colorScheme.primary)
