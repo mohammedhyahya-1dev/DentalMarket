@@ -41,8 +41,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.credentials.CredentialManager
@@ -260,6 +267,29 @@ fun LoginScreen(
         ) {
             Text("Not now")
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        val legalLinkStyle = TextLinkStyles(
+            style = SpanStyle(color = MaterialTheme.colorScheme.primary, textDecoration = TextDecoration.Underline)
+        )
+        Text(
+            text = buildAnnotatedString {
+                append("By signing up or logging in, you agree to our ")
+                withLink(LinkAnnotation.Url("https://dentalmarket-abdf6.firebaseapp.com/terms.html", legalLinkStyle)) {
+                    append("Terms of Service")
+                }
+                append(" and ")
+                withLink(LinkAnnotation.Url("https://dentalmarket-abdf6.firebaseapp.com/privacy.html", legalLinkStyle)) {
+                    append("Privacy Policy")
+                }
+                append(".")
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.outline,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
 
         if (showForgotPasswordDialog) {
             AlertDialog(

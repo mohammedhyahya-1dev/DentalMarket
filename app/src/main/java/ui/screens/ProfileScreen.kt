@@ -13,6 +13,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dentalmarket.app.ui.theme.BoneWhite
@@ -182,6 +188,12 @@ fun ProfileScreen(
                         }
                     }
 
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    LegalLink("Terms of Service", "https://dentalmarket-abdf6.firebaseapp.com/terms.html")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LegalLink("Privacy Policy", "https://dentalmarket-abdf6.firebaseapp.com/privacy.html")
+
                     Spacer(modifier = Modifier.height(24.dp))
 
                     Button(
@@ -197,4 +209,19 @@ fun ProfileScreen(
             }
         }
     }
+}
+
+@Composable
+private fun LegalLink(text: String, url: String) {
+    val linkStyle = TextLinkStyles(
+        style = SpanStyle(color = MaterialTheme.colorScheme.primary, textDecoration = TextDecoration.Underline)
+    )
+    Text(
+        text = buildAnnotatedString {
+            withLink(LinkAnnotation.Url(url, linkStyle)) {
+                append(text)
+            }
+        },
+        style = MaterialTheme.typography.bodyMedium
+    )
 }
