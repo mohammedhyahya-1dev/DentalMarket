@@ -50,7 +50,14 @@ data class Order(
     // order shows the buyer was charged. Flat amount, only present if the
     // buyer opted in for this specific item at checkout (not multiplied by
     // quantity). Paid by the buyer, never reaches the seller.
-    val safetyFee: Double = 0.0
+    val safetyFee: Double = 0.0,
+    // Locked in at checkout from item.listing.shippingPrice, only when
+    // deliveryMethod == SELLER_DELIVERS (0 for DENTALMARKET_DELIVERS —
+    // that's already free to the buyer via deliveryFee above). Flat per
+    // order, not multiplied by quantity, same treatment as safetyFee. Paid
+    // by the buyer, but unlike price, kept 100% by the seller — never
+    // reduced by commissionPercentage.
+    val shippingFee: Double = 0.0
     // Delivery address/contact phone deliberately live in a separate
     // orderDeliveryInfo/{orderId} document (see model/OrderDeliveryInfo.kt),
     // not here — sellers get read access to their own orders

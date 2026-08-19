@@ -122,8 +122,15 @@ private fun PayoutRow(order: Order) {
                 color = MaterialTheme.colorScheme.outline
             )
         }
+        if (order.shippingFee > 0) {
+            Text(
+                "Shipping (kept in full): $" + "%.2f".format(order.shippingFee),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline
+            )
+        }
         Text(
-            "You receive: $" + "%.2f".format(breakdown.sellerReceives),
+            "You receive: $" + "%.2f".format(breakdown.sellerReceives + order.shippingFee),
             style = MaterialTheme.typography.bodyMedium
         )
     }

@@ -216,6 +216,11 @@ class CartViewModel : ViewModel() {
                 } else {
                     0.0
                 }
+                val shippingFee = if (item.listing.deliveryMethod == "SELLER_DELIVERS") {
+                    item.listing.shippingPrice
+                } else {
+                    0.0
+                }
                 val order = Order(
                     listingId = item.listing.id,
                     listingName = item.listing.name,
@@ -229,7 +234,8 @@ class CartViewModel : ViewModel() {
                     commissionPercentage = commissionPercentage,
                     deliveryMethod = item.listing.deliveryMethod,
                     deliveryFee = deliveryFee,
-                    safetyFee = if (item.safetyFeeSelected) configuredSafetyFee else 0.0
+                    safetyFee = if (item.safetyFeeSelected) configuredSafetyFee else 0.0,
+                    shippingFee = shippingFee
                 )
                 val orderResult = orderRepository.placeOrder(order, address, contactPhone)
                 val placedOrder = orderResult.getOrNull()

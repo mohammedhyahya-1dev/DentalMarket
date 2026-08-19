@@ -54,6 +54,13 @@ fun CartItemRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.outline
             )
+            if (item.listing.deliveryMethod == "SELLER_DELIVERS" && item.listing.shippingPrice > 0) {
+                Text(
+                    "+ $" + "%.2f".format(item.listing.shippingPrice) + " shipping",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = item.safetyFeeSelected, onCheckedChange = { onToggleSafetyFee() })
                 Text(

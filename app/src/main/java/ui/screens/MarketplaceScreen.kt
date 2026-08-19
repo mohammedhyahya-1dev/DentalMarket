@@ -1,28 +1,36 @@
 package com.dentalmarket.app.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dentalmarket.app.data.AuthRepository
 import com.dentalmarket.app.ui.components.BottomNavBar
 import com.dentalmarket.app.ui.components.BottomNavTab
 import com.dentalmarket.app.ui.components.GuestSignInPrompt
+import com.dentalmarket.app.ui.components.NotificationPermissionDialog
 import com.dentalmarket.app.ui.components.ProductCard
+import com.dentalmarket.app.ui.components.markNotificationPromptShown
+import com.dentalmarket.app.ui.components.shouldShowNotificationPrompt
 import com.dentalmarket.app.viewmodel.CartViewModel
 import com.dentalmarket.app.viewmodel.MarketplaceViewModel
 import com.dentalmarket.app.viewmodel.NotificationViewModel
@@ -42,9 +50,9 @@ fun MarketplaceScreen(
     onMyListingsClick: () -> Unit,
     onNotificationsClick: () -> Unit,
     onSellerOrdersClick: () -> Unit,
-    onCategoriesClick: () -> Unit,
+    onWatchlistClick: () -> Unit,
+    onSearchSubmit: (String) -> Unit,
     onRequireLogin: () -> Unit,
-    preselectedCategory: String? = null,
     marketplaceViewModel: MarketplaceViewModel = viewModel(),
     watchlistViewModel: WatchlistViewModel = viewModel(),
     ratingViewModel: RatingViewModel = viewModel(),
@@ -54,10 +62,28 @@ fun MarketplaceScreen(
     val watchedIds by watchlistViewModel.watchedIds.collectAsState()
     val sellerSummaries by ratingViewModel.sellerSummaries.collectAsState()
     val unreadNotifications = notificationViewModel.unreadCount
+
+    val context = LocalContext.current
+    var showNotificationPrompt by remember { mutableStateOf(false) }
+    // shouldShowNotificationPrompt() is once-ever-per-install, backed by a
+    // SharedPreferences flag — re-checking on every fresh composition of
+    // this screen (e.g. Categories -> Home) is harmless, since it returns
+    // false again the moment that flag is set. Used to be a gating nav
+    // destination reached from authGate/CompleteProfileScreen before ever
+    // landing here; now this screen owns the decision itself.
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) {
+        markNotificationPromptShown(context)
+        showNotificationPrompt = false
+    }
     LaunchedEffect(Unit) {
         marketplaceViewModel.loadListings()
         watchlistViewModel.loadWatchlistOnce()
         notificationViewModel.loadNotifications()
+        if (shouldShowNotificationPrompt(context)) {
+            showNotificationPrompt = true
+        }
     }
     val itemCount = cartItems.sumOf { it.quantity }
     val listings = marketplaceViewModel.listings.value
@@ -75,24 +101,6 @@ fun MarketplaceScreen(
 
     fun requireLogin(action: () -> Unit) {
         if (isGuest) showGuestPrompt = true else action()
-    }
-
-    var searchQuery by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf(preselectedCategory) }
-
-    val categories = remember(listings) {
-        listings.map { it.category }.filter { it.isNotBlank() }.distinct().sorted()
-    }
-
-    val filteredListings = remember(listings, searchQuery, selectedCategory) {
-        listings.filter { listing ->
-            val matchesSearch = searchQuery.isBlank() ||
-                    listing.name.contains(searchQuery, ignoreCase = true) ||
-                    listing.category.contains(searchQuery, ignoreCase = true)
-            val matchesCategory = selectedCategory == null ||
-                    listing.category.equals(selectedCategory, ignoreCase = true)
-            matchesSearch && matchesCategory
-        }
     }
 
     Scaffold(
@@ -120,6 +128,15 @@ fun MarketplaceScreen(
                     IconButton(onClick = { requireLogin(onMyListingsClick) }, modifier = Modifier.padding(end = 8.dp)) {
                         Icon(Icons.Filled.Edit, contentDescription = "My listings")
                     }
+                    IconButton(onClick = onCartClick) {
+                        BadgedBox(badge = {
+                            if (itemCount > 0) {
+                                Badge { Text("$itemCount") }
+                            }
+                        }) {
+                            Icon(Icons.Filled.ShoppingCart, contentDescription = "Cart")
+                        }
+                    }
                 }
             )
         },
@@ -127,61 +144,39 @@ fun MarketplaceScreen(
             BottomNavBar(
                 selectedTab = BottomNavTab.HOME,
                 onHomeClick = {},
-                onCategoriesClick = onCategoriesClick,
-                onCartClick = onCartClick,
+                onFavoritesClick = { requireLogin(onWatchlistClick) },
+                onSellClick = { requireLogin(onSellClick) },
                 onMyOrdersClick = { requireLogin(onMyOrdersClick) },
-                onProfileClick = { requireLogin(onProfileClick) },
-                cartItemCount = itemCount
+                onProfileClick = { requireLogin(onProfileClick) }
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = { requireLogin(onSellClick) }) {
-                Icon(Icons.Filled.Add, contentDescription = "Sell a device")
-            }
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                label = { Text("Search devices") },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Filled.Clear, contentDescription = "Clear search")
-                        }
-                    }
-                },
-                singleLine = true,
+            // Non-editable — this is a fake entry point you tap, not a real
+            // input. The overlay Box below intercepts the tap before it ever
+            // reaches the OutlinedTextField, so the field never requests
+            // focus and no keyboard flickers open before navigating away.
+            // The real, editable, auto-focused search field lives on
+            // SearchResultsScreen itself.
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
-            )
-
-            if (categories.isNotEmpty()) {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    modifier = Modifier.padding(bottom = 8.dp)
-                ) {
-                    item {
-                        FilterChip(
-                            selected = selectedCategory == null,
-                            onClick = { selectedCategory = null },
-                            label = { Text("All") }
-                        )
-                    }
-                    items(categories) { category ->
-                        FilterChip(
-                            selected = selectedCategory == category,
-                            onClick = {
-                                selectedCategory = if (selectedCategory == category) null else category
-                            },
-                            label = { Text(category) }
-                        )
-                    }
-                }
+            ) {
+                OutlinedTextField(
+                    value = "",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Search devices") },
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clickable(onClick = { onSearchSubmit("") })
+                )
             }
 
             Box(modifier = Modifier.weight(1f)) {
@@ -192,17 +187,16 @@ fun MarketplaceScreen(
                     listings.isEmpty() -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text("No listings yet \u2014 be the first to sell a device!")
                     }
-                    filteredListings.isEmpty() -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No devices match your search", style = MaterialTheme.typography.titleMedium)
-                    }
-                    else -> LazyColumn(
+                    else -> LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         contentPadding = PaddingValues(vertical = 12.dp)
                     ) {
-                        items(filteredListings, key = { it.id }) { listing ->
+                        items(listings, key = { it.id }) { listing ->
                             ProductCard(
                                 listing = listing,
                                 onClick = { onProductClick(listing.id) },
@@ -224,6 +218,23 @@ fun MarketplaceScreen(
             onSignIn = {
                 showGuestPrompt = false
                 onRequireLogin()
+            }
+        )
+    }
+
+    if (showNotificationPrompt) {
+        NotificationPermissionDialog(
+            onAllow = {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else {
+                    markNotificationPromptShown(context)
+                    showNotificationPrompt = false
+                }
+            },
+            onDismiss = {
+                markNotificationPromptShown(context)
+                showNotificationPrompt = false
             }
         )
     }

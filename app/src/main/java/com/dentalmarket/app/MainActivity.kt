@@ -43,15 +43,8 @@ import com.dentalmarket.app.ui.theme.DentalMarketTheme
 import com.dentalmarket.app.viewmodel.AuthViewModel
 import com.dentalmarket.app.viewmodel.CartViewModel
 import com.dentalmarket.app.viewmodel.InquiryViewModel
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
-import androidx.compose.ui.platform.LocalContext
-import com.dentalmarket.app.ui.screens.NotificationPermissionScreen
 import com.dentalmarket.app.ui.screens.CategoriesScreen
+import com.dentalmarket.app.ui.screens.SearchResultsScreen
 import com.dentalmarket.app.ui.screens.WatchlistScreen
 
 class MainActivity : ComponentActivity() {
@@ -100,14 +93,12 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
 
     NavHost(navController = navController, startDestination = startDestination) {
         composable("authGate") {
-            val context = LocalContext.current
             LaunchedEffect(Unit) {
                 fun proceedAsGuest() {
                     // Guests have no profile doc to check — skip straight to
-                    // the same notification-prompt-or-marketplace branch a
-                    // completed profile would take.
-                    val destination = if (shouldShowNotificationPrompt(context)) "notificationPermission" else "marketplace"
-                    navController.navigate(destination) {
+                    // marketplace. MarketplaceScreen itself now decides
+                    // whether to show the notification-permission dialog.
+                    navController.navigate("marketplace") {
                         popUpTo("authGate") { inclusive = true }
                     }
                 }
@@ -131,11 +122,7 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
                     authViewModel.isAnonymous -> proceedAsGuest()
                     else -> {
                         authViewModel.checkProfileComplete { complete ->
-                            val destination = when {
-                                !complete -> "completeProfile"
-                                shouldShowNotificationPrompt(context) -> "notificationPermission"
-                                else -> "marketplace"
-                            }
+                            val destination = if (!complete) "completeProfile" else "marketplace"
                             navController.navigate(destination) {
                                 popUpTo("authGate") { inclusive = true }
                             }
@@ -182,12 +169,12 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
             )
         }
         composable("completeProfile") {
-            val context = LocalContext.current
             CompleteProfileScreen(
                 authViewModel = authViewModel,
                 onComplete = {
-                    val destination = if (shouldShowNotificationPrompt(context)) "notificationPermission" else "marketplace"
-                    navController.navigate(destination) {
+                    // MarketplaceScreen itself now decides whether to show
+                    // the notification-permission dialog.
+                    navController.navigate("marketplace") {
                         popUpTo("completeProfile") { inclusive = true }
                     }
                 },
@@ -202,40 +189,7 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
                 }
             )
         }
-        composable("notificationPermission") {
-            val context = LocalContext.current
-            val permissionLauncher = rememberLauncherForActivityResult(
-                ActivityResultContracts.RequestPermission()
-            ) {
-                markNotificationPromptShown(context)
-                navController.navigate("marketplace") {
-                    popUpTo("notificationPermission") { inclusive = true }
-                }
-            }
-            NotificationPermissionScreen(
-                onAllow = {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    } else {
-                        markNotificationPromptShown(context)
-                        navController.navigate("marketplace") {
-                            popUpTo("notificationPermission") { inclusive = true }
-                        }
-                    }
-                },
-                onSkip = {
-                    markNotificationPromptShown(context)
-                    navController.navigate("marketplace") {
-                        popUpTo("notificationPermission") { inclusive = true }
-                    }
-                }
-            )
-        }
-        composable(
-            "marketplace?category={category}",
-            arguments = listOf(navArgument("category") { type = NavType.StringType; nullable = true; defaultValue = null })
-        ) { backStackEntry ->
-            val preselectedCategory = backStackEntry.arguments?.getString("category")
+        composable("marketplace") {
             MarketplaceScreen(
                 cartViewModel = cartViewModel,
                 onProductClick = { id -> navController.navigate("product/$id") },
@@ -247,15 +201,34 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
                 onMyListingsClick = { navController.navigate("myListings") },
                 onNotificationsClick = { navController.navigate("sellerNotifications") },
                 onSellerOrdersClick = { navController.navigate("sellerOrders") },
+                onWatchlistClick = { navController.navigate("watchlist") },
+                onSearchSubmit = { query -> navController.navigate("searchResults?query=${Uri.encode(query)}") },
+                onRequireLogin = { navController.navigate("login") }
+            )
+        }
+        composable(
+            "searchResults?query={query}",
+            arguments = listOf(navArgument("query") { type = NavType.StringType; nullable = true; defaultValue = "" })
+        ) { backStackEntry ->
+            val initialQuery = backStackEntry.arguments?.getString("query") ?: ""
+            SearchResultsScreen(
+                initialQuery = initialQuery,
+                cartViewModel = cartViewModel,
+                onProductClick = { id -> navController.navigate("product/$id") },
+                onBack = { navController.popBackStack() },
                 onCategoriesClick = { navController.navigate("categories") },
-                onRequireLogin = { navController.navigate("login") },
-                preselectedCategory = preselectedCategory
+                onRequireLogin = { navController.navigate("login") }
             )
         }
         composable("categories") {
             CategoriesScreen(
-                onCategoryClick = { category ->
-                    navController.navigate("marketplace?category=${category.label}") {
+                // Home no longer has any way to act on a preselected
+                // category (its inline quick-filter chips were removed —
+                // that filtering now lives only in SearchResultsScreen's
+                // filter sheet), so this just goes back to an unfiltered
+                // Home, same as onHomeClick below.
+                onCategoryClick = {
+                    navController.navigate("marketplace") {
                         popUpTo("marketplace") { inclusive = true }
                     }
                 },
@@ -264,7 +237,8 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
                         popUpTo("marketplace") { inclusive = true }
                     }
                 },
-                onCartClick = { navController.navigate("cart") },
+                onFavoritesClick = { navController.navigate("watchlist") },
+                onSellClick = { navController.navigate("sell") },
                 onMyOrdersClick = { navController.navigate("myOrders") },
                 onProfileClick = { navController.navigate("profile") },
                 onRequireLogin = { navController.navigate("login") }
@@ -444,20 +418,4 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
             }
         }
     }
-}
-
-private fun shouldShowNotificationPrompt(context: android.content.Context): Boolean {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        val granted = ContextCompat.checkSelfPermission(
-            context, Manifest.permission.POST_NOTIFICATIONS
-        ) == PackageManager.PERMISSION_GRANTED
-        if (granted) return false
-    }
-    val prefs = context.getSharedPreferences("dentalmarket_prefs", android.content.Context.MODE_PRIVATE)
-    return !prefs.getBoolean("notification_prompt_shown", false)
-}
-
-private fun markNotificationPromptShown(context: android.content.Context) {
-    val prefs = context.getSharedPreferences("dentalmarket_prefs", android.content.Context.MODE_PRIVATE)
-    prefs.edit().putBoolean("notification_prompt_shown", true).apply()
 }

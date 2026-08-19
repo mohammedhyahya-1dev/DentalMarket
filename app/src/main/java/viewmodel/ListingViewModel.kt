@@ -55,6 +55,8 @@ class ListingViewModel : ViewModel() {
     var description = mutableStateOf("")
     var emoji = mutableStateOf("🦷")
     var deliveryMethod = mutableStateOf("SELLER_DELIVERS")
+    var shippingPrice = mutableStateOf("")
+    var brand = mutableStateOf("")
 
     // Dynamic key/value spec rows the seller builds (e.g. "Brand" -> "Sirona").
     // Kept as a mutable list of individually-observable rows so typing in one
@@ -102,7 +104,9 @@ class ListingViewModel : ViewModel() {
     private var editingListingId: String? = null
     private var editingSellerId: String = ""
     private var editingSellerName: String = ""
+    private var editingSellerProvince: String = ""
     private var editingStatus: String = "AVAILABLE"
+    private var editingCreatedAt: Long = 0
 
     fun loadListingForEdit(listingId: String) {
         editingListingId = listingId
@@ -119,9 +123,13 @@ class ListingViewModel : ViewModel() {
                     description.value = listing.description
                     emoji.value = listing.emoji
                     deliveryMethod.value = listing.deliveryMethod
+                    shippingPrice.value = if (listing.shippingPrice > 0) listing.shippingPrice.toString() else ""
+                    brand.value = listing.brand
                     editingSellerId = listing.sellerId
                     editingSellerName = listing.sellerName
+                    editingSellerProvince = listing.sellerProvince
                     editingStatus = listing.status
+                    editingCreatedAt = listing.createdAt
                     specifics.clear()
                     listing.specifics.forEach { (k, v) ->
                         specifics.add(SpecRow(mutableStateOf(k), mutableStateOf(v)))
@@ -160,6 +168,8 @@ class ListingViewModel : ViewModel() {
                 return@launch
             }
 
+            val shippingPriceValue = shippingPrice.value.toDoubleOrNull() ?: 0.0
+
             if (editingId != null) {
                 val listing = Listing(
                     id = editingId,
@@ -173,7 +183,11 @@ class ListingViewModel : ViewModel() {
                     emoji = emoji.value,
                     status = editingStatus,
                     specifics = specifics.associate { it.key.value.trim() to it.value.value.trim() }.filterKeys { it.isNotBlank() },
-                    deliveryMethod = deliveryMethod.value
+                    deliveryMethod = deliveryMethod.value,
+                    shippingPrice = shippingPriceValue,
+                    brand = brand.value.trim(),
+                    sellerProvince = editingSellerProvince,
+                    createdAt = editingCreatedAt
                 )
                 val result = repository.updateListing(editingId, listing)
                 isLoading.value = false
@@ -182,6 +196,7 @@ class ListingViewModel : ViewModel() {
             } else {
                 val profileResult = authRepository.getCurrentUserProfile()
                 val sellerName = profileResult.getOrNull()?.name ?: "Unknown Seller"
+                val sellerProvince = profileResult.getOrNull()?.province ?: ""
 
                 val listing = Listing(
                     sellerId = sellerId,
@@ -193,7 +208,10 @@ class ListingViewModel : ViewModel() {
                     description = description.value,
                     emoji = emoji.value,
                     specifics = specifics.associate { it.key.value.trim() to it.value.value.trim() }.filterKeys { it.isNotBlank() },
-                    deliveryMethod = deliveryMethod.value
+                    deliveryMethod = deliveryMethod.value,
+                    shippingPrice = shippingPriceValue,
+                    brand = brand.value.trim(),
+                    sellerProvince = sellerProvince
                 )
                 val result = repository.addListing(listing)
                 isLoading.value = false

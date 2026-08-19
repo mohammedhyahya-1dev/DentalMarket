@@ -128,6 +128,13 @@ fun SellScreen(
         )
 
         OutlinedTextField(
+            value = viewModel.brand.value,
+            onValueChange = { viewModel.brand.value = it },
+            label = { Text("Brand (optional)") },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        OutlinedTextField(
             value = viewModel.description.value,
             onValueChange = { viewModel.description.value = it },
             label = { Text("Description (optional)") },
@@ -137,17 +144,29 @@ fun SellScreen(
 
         val commissionPercentage = viewModel.commissionPercentage.value
         val priceValue = viewModel.price.value.toDoubleOrNull()
+        val shippingPriceValue = viewModel.shippingPrice.value.toDoubleOrNull() ?: 0.0
         if (commissionPercentage != null && priceValue != null && priceValue > 0) {
             val deliveryFeeToSubtract = if (viewModel.deliveryMethod.value == "DENTALMARKET_DELIVERS") {
                 viewModel.deliveryFeeAmount.value ?: 0.0
             } else {
                 0.0
             }
+            val shippingToAdd = if (viewModel.deliveryMethod.value == "SELLER_DELIVERS") shippingPriceValue else 0.0
             val breakdown = calculatePayout(priceValue, commissionPercentage, deliveryFeeToSubtract)
+            val deliveryFeeClause = if (deliveryFeeToSubtract > 0) {
+                " and $" + "%.2f".format(deliveryFeeToSubtract) + " delivery fee"
+            } else {
+                ""
+            }
+            val shippingClause = if (shippingToAdd > 0) {
+                " (includes $" + "%.2f".format(shippingToAdd) + " shipping, kept in full)"
+            } else {
+                ""
+            }
             Text(
-                "You'll receive approximately $" + "%.2f".format(breakdown.sellerReceives) +
+                "You'll receive approximately $" + "%.2f".format(breakdown.sellerReceives + shippingToAdd) +
                     " after our ${"%.1f".format(commissionPercentage)}% platform fee" +
-                    if (deliveryFeeToSubtract > 0) " and $" + "%.2f".format(deliveryFeeToSubtract) + " delivery fee." else ".",
+                    deliveryFeeClause + shippingClause + ".",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.outline
             )
@@ -161,6 +180,14 @@ fun SellScreen(
                 onClick = { viewModel.deliveryMethod.value = "SELLER_DELIVERS" }
             )
             Text("I'll deliver it myself", style = MaterialTheme.typography.bodyMedium)
+        }
+        if (viewModel.deliveryMethod.value == "SELLER_DELIVERS") {
+            OutlinedTextField(
+                value = viewModel.shippingPrice.value,
+                onValueChange = { viewModel.shippingPrice.value = it },
+                label = { Text("Shipping price ($, 0 for free shipping)") },
+                modifier = Modifier.fillMaxWidth().padding(start = 40.dp)
+            )
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             RadioButton(

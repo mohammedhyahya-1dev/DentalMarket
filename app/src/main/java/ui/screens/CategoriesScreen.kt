@@ -29,7 +29,8 @@ import com.dentalmarket.app.ui.components.GuestSignInPrompt
 fun CategoriesScreen(
     onCategoryClick: (DeviceCategory) -> Unit,
     onHomeClick: () -> Unit,
-    onCartClick: () -> Unit,
+    onFavoritesClick: () -> Unit,
+    onSellClick: () -> Unit,
     onMyOrdersClick: () -> Unit,
     onProfileClick: () -> Unit,
     onRequireLogin: () -> Unit
@@ -48,10 +49,10 @@ fun CategoriesScreen(
         },
         bottomBar = {
             BottomNavBar(
-                selectedTab = BottomNavTab.CATEGORIES,
+                selectedTab = BottomNavTab.HOME,
                 onHomeClick = onHomeClick,
-                onCategoriesClick = {},
-                onCartClick = onCartClick,
+                onFavoritesClick = { requireLogin(onFavoritesClick) },
+                onSellClick = { requireLogin(onSellClick) },
                 onMyOrdersClick = { requireLogin(onMyOrdersClick) },
                 onProfileClick = { requireLogin(onProfileClick) }
             )

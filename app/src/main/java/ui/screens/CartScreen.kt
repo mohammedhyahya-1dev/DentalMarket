@@ -128,13 +128,18 @@ fun CartScreen(
                     val safetyFeeTotal = cartItems
                         .filter { it.safetyFeeSelected }
                         .sumOf { safetyFeeAmount }
+                    // Flat per listing, not multiplied by quantity — same
+                    // treatment as safetyFeeTotal above.
+                    val shippingTotal = cartItems
+                        .filter { it.listing.deliveryMethod == "SELLER_DELIVERS" }
+                        .sumOf { it.listing.shippingPrice }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "Total: $" + "%.2f".format(itemTotal + safetyFeeTotal),
+                            "Total: $" + "%.2f".format(itemTotal + safetyFeeTotal + shippingTotal),
                             style = MaterialTheme.typography.titleLarge,
                             color = WarmAmber
                         )

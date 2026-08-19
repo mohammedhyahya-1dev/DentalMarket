@@ -98,13 +98,28 @@ fun ListingDetailScreen(
             } else {
                 0.0
             }
+            val shippingToAdd = if (currentListing.deliveryMethod == "SELLER_DELIVERS") {
+                currentListing.shippingPrice
+            } else {
+                0.0
+            }
             if (commissionPercentage != null) {
                 Spacer(modifier = Modifier.height(12.dp))
                 val breakdown = calculatePayout(currentListing.price, commissionPercentage, deliveryFeeToSubtract)
+                val deliveryFeeClause = if (deliveryFeeToSubtract > 0) {
+                    " and $" + "%.2f".format(deliveryFeeToSubtract) + " delivery fee"
+                } else {
+                    ""
+                }
+                val shippingClause = if (shippingToAdd > 0) {
+                    " (includes $" + "%.2f".format(shippingToAdd) + " shipping, kept in full)"
+                } else {
+                    ""
+                }
                 Text(
-                    "You'll receive approximately $" + "%.2f".format(breakdown.sellerReceives) +
+                    "You'll receive approximately $" + "%.2f".format(breakdown.sellerReceives + shippingToAdd) +
                         " after our ${"%.1f".format(commissionPercentage)}% platform fee" +
-                        if (deliveryFeeToSubtract > 0) " and $" + "%.2f".format(deliveryFeeToSubtract) + " delivery fee." else ".",
+                        deliveryFeeClause + shippingClause + ".",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline
                 )
