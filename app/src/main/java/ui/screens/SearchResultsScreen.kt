@@ -16,7 +16,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dentalmarket.app.data.AuthRepository
 import com.dentalmarket.app.model.Condition
@@ -83,6 +86,25 @@ fun SearchResultsScreen(
     var showFilters by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
 
+    var isSearchFocused by remember { mutableStateOf(false) }
+    // Tapping a suggestion fills the field but shouldn't immediately reopen
+    // the same dropdown underneath it; typing anything afterward clears
+    // this so suggestions can resume.
+    var suggestionsDismissed by remember { mutableStateOf(false) }
+
+    val suggestions = remember(listings, searchViewModel.query.value) {
+        val q = searchViewModel.query.value
+        if (q.isBlank()) {
+            emptyList()
+        } else {
+            listings
+                .map { it.name }
+                .filter { it.isNotBlank() && it.contains(q, ignoreCase = true) }
+                .distinct()
+                .take(6)
+        }
+    }
+
     val availableCategories = remember(listings) {
         listings.map { it.category }.filter { it.isNotBlank() }.distinct().sorted()
     }
@@ -134,16 +156,41 @@ fun SearchResultsScreen(
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            OutlinedTextField(
-                value = searchViewModel.query.value,
-                onValueChange = { searchViewModel.query.value = it },
-                label = { Text("Search devices") },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                singleLine = true,
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
-            )
+            ) {
+                OutlinedTextField(
+                    value = searchViewModel.query.value,
+                    onValueChange = {
+                        searchViewModel.query.value = it
+                        suggestionsDismissed = false
+                    },
+                    label = { Text("Search devices") },
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onFocusChanged { isSearchFocused = it.isFocused }
+                )
+                DropdownMenu(
+                    expanded = isSearchFocused && !suggestionsDismissed && suggestions.isNotEmpty(),
+                    onDismissRequest = {},
+                    properties = PopupProperties(focusable = false),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    suggestions.forEach { title ->
+                        DropdownMenuItem(
+                            text = { Text(title) },
+                            onClick = {
+                                searchViewModel.query.value = title
+                                suggestionsDismissed = true
+                            }
+                        )
+                    }
+                }
+            }
 
             CategoriesRow(onClick = onCategoriesClick)
 
@@ -176,14 +223,17 @@ fun SearchResultsScreen(
                 }
             }
 
-            Text(
-                "${results.size} result" + if (results.size == 1) "" else "s",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.outline,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-            )
+            if (searchViewModel.query.value.isNotBlank()) {
+                Text(
+                    "${results.size} result" + if (results.size == 1) "" else "s",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
 
             when {
+                searchViewModel.query.value.isBlank() -> EmptySearchState()
                 isLoading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
@@ -232,6 +282,38 @@ fun SearchResultsScreen(
             availableLocations = availableLocations,
             onDismiss = { showFilters = false }
         )
+    }
+}
+
+// Shown before the buyer has typed anything — filterAndSortListings() is
+// never even asked to run against a blank query (see the `when` branch
+// order above), so this is a distinct "nothing searched yet" state, not a
+// "0 results" state.
+@Composable
+private fun EmptySearchState() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                Icons.Filled.Search,
+                contentDescription = null,
+                modifier = Modifier.size(64.dp),
+                tint = MaterialTheme.colorScheme.outline
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("What are you looking for?", style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                "Search by device name, category, or brand.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.outline,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
 
