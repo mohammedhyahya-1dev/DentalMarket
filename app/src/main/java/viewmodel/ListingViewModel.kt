@@ -50,6 +50,7 @@ class ListingViewModel : ViewModel() {
 
     var name = mutableStateOf("")
     var category = mutableStateOf("")
+    var subcategory = mutableStateOf("")
     var condition = mutableStateOf("GOOD")
     var price = mutableStateOf("")
     var description = mutableStateOf("")
@@ -62,6 +63,15 @@ class ListingViewModel : ViewModel() {
     // Kept as a mutable list of individually-observable rows so typing in one
     // field doesn't force the whole list to redraw.
     var specifics = mutableStateListOf<SpecRow>()
+
+    // Picking a new top-level category invalidates whatever subcategory was
+    // chosen under the previous one (each category has its own distinct
+    // subcategory list) — always route category changes through here rather
+    // than setting category.value directly.
+    fun setCategory(newLabel: String) {
+        category.value = newLabel
+        subcategory.value = ""
+    }
 
     fun addSpecRow() {
         specifics.add(SpecRow(mutableStateOf(""), mutableStateOf("")))
@@ -118,6 +128,7 @@ class ListingViewModel : ViewModel() {
                 if (listing != null) {
                     name.value = listing.name
                     category.value = listing.category
+                    subcategory.value = listing.subcategory
                     condition.value = listing.condition
                     price.value = listing.price.toString()
                     description.value = listing.description
@@ -151,7 +162,6 @@ class ListingViewModel : ViewModel() {
             errorMessage.value = "Please fill in name and a valid price."
             return
         }
-
         isLoading.value = true
         errorMessage.value = null
         val editingId = editingListingId
@@ -177,6 +187,7 @@ class ListingViewModel : ViewModel() {
                     sellerName = editingSellerName,
                     name = name.value,
                     category = category.value,
+                    subcategory = subcategory.value,
                     condition = condition.value,
                     price = priceValue,
                     description = description.value,
@@ -203,6 +214,7 @@ class ListingViewModel : ViewModel() {
                     sellerName = sellerName,
                     name = name.value,
                     category = category.value,
+                    subcategory = subcategory.value,
                     condition = condition.value,
                     price = priceValue,
                     description = description.value,

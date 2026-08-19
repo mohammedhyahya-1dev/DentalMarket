@@ -6,6 +6,10 @@ data class Listing(
     val sellerName: String = "",
     val name: String = "",
     val category: String = "",
+    // Optional even when DeviceCategory.subcategories for `category` is
+    // non-empty — sellers are never forced to pick one. Plain label string,
+    // same pattern as category itself (not the enum name).
+    val subcategory: String = "",
     val condition: String = "",
     val price: Double = 0.0,
     val description: String = "",

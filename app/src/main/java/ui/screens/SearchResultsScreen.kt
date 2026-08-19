@@ -24,6 +24,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dentalmarket.app.data.AuthRepository
 import com.dentalmarket.app.model.Condition
 import com.dentalmarket.app.model.DeliveryMethod
+import com.dentalmarket.app.model.DeviceCategory
 import com.dentalmarket.app.ui.components.CategoriesRow
 import com.dentalmarket.app.ui.components.GuestSignInPrompt
 import com.dentalmarket.app.ui.components.ProductCard
@@ -46,6 +47,8 @@ import com.dentalmarket.app.viewmodel.filterAndSortListings
 @Composable
 fun SearchResultsScreen(
     initialQuery: String,
+    initialCategory: String = "",
+    initialSubcategory: String = "",
     cartViewModel: CartViewModel,
     onProductClick: (String) -> Unit,
     onBack: () -> Unit,
@@ -64,8 +67,14 @@ fun SearchResultsScreen(
     LaunchedEffect(Unit) {
         marketplaceViewModel.loadListings()
         watchlistViewModel.loadWatchlistOnce()
-        if (searchViewModel.query.value.isBlank()) {
+        if (searchViewModel.query.value.isBlank() && initialQuery.isNotBlank()) {
             searchViewModel.query.value = initialQuery
+        }
+        if (searchViewModel.selectedCategories.value.isEmpty() && initialCategory.isNotBlank()) {
+            searchViewModel.selectedCategories.value = setOf(initialCategory)
+        }
+        if (searchViewModel.selectedSubcategories.value.isEmpty() && initialSubcategory.isNotBlank()) {
+            searchViewModel.selectedSubcategories.value = setOf(initialSubcategory)
         }
     }
 
@@ -105,15 +114,19 @@ fun SearchResultsScreen(
         }
     }
 
-    val availableCategories = remember(listings) {
-        listings.map { it.category }.filter { it.isNotBlank() }.distinct().sorted()
-    }
     val availableBrands = remember(listings) {
         listings.map { it.brand }.filter { it.isNotBlank() }.distinct().sorted()
     }
     val availableLocations = remember(listings) {
         listings.map { it.sellerProvince }.filter { it.isNotBlank() }.distinct().sorted()
     }
+
+    // Query text and category drill-down are the two ways to arrive at a
+    // result set; the other FilterSheet facets are refinements applied on
+    // top of one of those, never a standalone entry point on their own.
+    val hasActiveSearch = searchViewModel.query.value.isNotBlank() ||
+        searchViewModel.selectedCategories.value.isNotEmpty() ||
+        searchViewModel.selectedSubcategories.value.isNotEmpty()
 
     val results = remember(
         listings,
@@ -122,6 +135,7 @@ fun SearchResultsScreen(
         searchViewModel.minPrice.value,
         searchViewModel.maxPrice.value,
         searchViewModel.selectedCategories.value,
+        searchViewModel.selectedSubcategories.value,
         searchViewModel.selectedConditions.value,
         searchViewModel.selectedDeliveryMethods.value,
         searchViewModel.freeShippingOnly.value,
@@ -135,6 +149,7 @@ fun SearchResultsScreen(
             minPrice = searchViewModel.minPrice.value.toDoubleOrNull(),
             maxPrice = searchViewModel.maxPrice.value.toDoubleOrNull(),
             categories = searchViewModel.selectedCategories.value,
+            subcategories = searchViewModel.selectedSubcategories.value,
             conditions = searchViewModel.selectedConditions.value,
             deliveryMethods = searchViewModel.selectedDeliveryMethods.value,
             freeShippingOnly = searchViewModel.freeShippingOnly.value,
@@ -223,7 +238,7 @@ fun SearchResultsScreen(
                 }
             }
 
-            if (searchViewModel.query.value.isNotBlank()) {
+            if (hasActiveSearch) {
                 Text(
                     "${results.size} result" + if (results.size == 1) "" else "s",
                     style = MaterialTheme.typography.bodySmall,
@@ -233,7 +248,7 @@ fun SearchResultsScreen(
             }
 
             when {
-                searchViewModel.query.value.isBlank() -> EmptySearchState()
+                !hasActiveSearch -> EmptySearchState()
                 isLoading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
@@ -277,7 +292,6 @@ fun SearchResultsScreen(
     if (showFilters) {
         FilterSheet(
             searchViewModel = searchViewModel,
-            availableCategories = availableCategories,
             availableBrands = availableBrands,
             availableLocations = availableLocations,
             onDismiss = { showFilters = false }
@@ -321,7 +335,6 @@ private fun EmptySearchState() {
 @Composable
 private fun FilterSheet(
     searchViewModel: SearchViewModel,
-    availableCategories: List<String>,
     availableBrands: List<String>,
     availableLocations: List<String>,
     onDismiss: () -> Unit
@@ -369,20 +382,43 @@ private fun FilterSheet(
                 )
             }
 
-            if (availableCategories.isNotEmpty()) {
-                Text("Category", style = MaterialTheme.typography.titleMedium)
+            Text("Category", style = MaterialTheme.typography.titleMedium)
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
+            ) {
+                items(DeviceCategory.entries) { cat ->
+                    FilterChip(
+                        selected = searchViewModel.selectedCategories.value.contains(cat.label),
+                        onClick = { searchViewModel.toggleCategory(cat.label) },
+                        label = { Text("${cat.emoji} ${cat.label}") }
+                    )
+                }
+            }
+
+            // Only meaningful (and only shown) once exactly one category is
+            // selected — each category has its own distinct subcategory
+            // list, and SearchViewModel.toggleCategory() already clears any
+            // stale subcategory selection whenever this set changes.
+            val soleSelectedCategory = searchViewModel.selectedCategories.value
+                .singleOrNull()
+                ?.let { label -> DeviceCategory.entries.find { it.label == label } }
+            if (soleSelectedCategory != null && soleSelectedCategory.subcategories.isNotEmpty()) {
+                Text("Subcategory", style = MaterialTheme.typography.titleMedium)
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.padding(top = 8.dp, bottom = 16.dp)
                 ) {
-                    items(availableCategories) { category ->
+                    items(soleSelectedCategory.subcategories) { sub ->
                         FilterChip(
-                            selected = searchViewModel.selectedCategories.value.contains(category),
-                            onClick = { searchViewModel.toggleCategory(category) },
-                            label = { Text(category) }
+                            selected = searchViewModel.selectedSubcategories.value.contains(sub),
+                            onClick = { searchViewModel.toggleSubcategory(sub) },
+                            label = { Text(sub) }
                         )
                     }
                 }
+            } else {
+                Spacer(modifier = Modifier.height(8.dp))
             }
 
             Text("Condition", style = MaterialTheme.typography.titleMedium)

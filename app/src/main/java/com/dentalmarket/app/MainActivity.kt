@@ -207,12 +207,20 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
             )
         }
         composable(
-            "searchResults?query={query}",
-            arguments = listOf(navArgument("query") { type = NavType.StringType; nullable = true; defaultValue = "" })
+            "searchResults?query={query}&category={category}&subcategory={subcategory}",
+            arguments = listOf(
+                navArgument("query") { type = NavType.StringType; nullable = true; defaultValue = "" },
+                navArgument("category") { type = NavType.StringType; nullable = true; defaultValue = "" },
+                navArgument("subcategory") { type = NavType.StringType; nullable = true; defaultValue = "" }
+            )
         ) { backStackEntry ->
             val initialQuery = backStackEntry.arguments?.getString("query") ?: ""
+            val initialCategory = backStackEntry.arguments?.getString("category") ?: ""
+            val initialSubcategory = backStackEntry.arguments?.getString("subcategory") ?: ""
             SearchResultsScreen(
                 initialQuery = initialQuery,
+                initialCategory = initialCategory,
+                initialSubcategory = initialSubcategory,
                 cartViewModel = cartViewModel,
                 onProductClick = { id -> navController.navigate("product/$id") },
                 onBack = { navController.popBackStack() },
@@ -222,15 +230,9 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
         }
         composable("categories") {
             CategoriesScreen(
-                // Home no longer has any way to act on a preselected
-                // category (its inline quick-filter chips were removed —
-                // that filtering now lives only in SearchResultsScreen's
-                // filter sheet), so this just goes back to an unfiltered
-                // Home, same as onHomeClick below.
-                onCategoryClick = {
-                    navController.navigate("marketplace") {
-                        popUpTo("marketplace") { inclusive = true }
-                    }
+                onLeafSelected = { category, subcategory ->
+                    val subcategoryArg = subcategory?.let { "&subcategory=${Uri.encode(it)}" } ?: ""
+                    navController.navigate("searchResults?category=${Uri.encode(category.label)}$subcategoryArg")
                 },
                 onHomeClick = {
                     navController.navigate("marketplace") {

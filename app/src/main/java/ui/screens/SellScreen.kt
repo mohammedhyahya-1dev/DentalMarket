@@ -30,6 +30,7 @@ fun SellScreen(
 ) {
     var conditionExpanded by remember { mutableStateOf(false) }
     var categoryExpanded by remember { mutableStateOf(false) }
+    var subcategoryExpanded by remember { mutableStateOf(false) }
     val isEditMode = listingId != null
 
     LaunchedEffect(listingId) {
@@ -85,10 +86,40 @@ fun SellScreen(
                     DropdownMenuItem(
                         text = { Text("${cat.emoji} ${cat.label}") },
                         onClick = {
-                            viewModel.category.value = cat.label
+                            viewModel.setCategory(cat.label)
                             categoryExpanded = false
                         }
                     )
+                }
+            }
+        }
+
+        val selectedCategoryDefinition = DeviceCategory.entries.find { it.label == viewModel.category.value }
+        if (selectedCategoryDefinition != null) {
+            ExposedDropdownMenuBox(
+                expanded = subcategoryExpanded,
+                onExpandedChange = { subcategoryExpanded = it }
+            ) {
+                OutlinedTextField(
+                    value = viewModel.subcategory.value,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Subcategory") },
+                    modifier = Modifier.fillMaxWidth().menuAnchor()
+                )
+                ExposedDropdownMenu(
+                    expanded = subcategoryExpanded,
+                    onDismissRequest = { subcategoryExpanded = false }
+                ) {
+                    selectedCategoryDefinition.subcategories.forEach { sub ->
+                        DropdownMenuItem(
+                            text = { Text(sub) },
+                            onClick = {
+                                viewModel.subcategory.value = sub
+                                subcategoryExpanded = false
+                            }
+                        )
+                    }
                 }
             }
         }

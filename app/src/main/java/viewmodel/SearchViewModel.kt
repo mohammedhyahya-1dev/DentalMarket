@@ -23,14 +23,24 @@ class SearchViewModel : ViewModel() {
     var minPrice = mutableStateOf("")
     var maxPrice = mutableStateOf("")
     var selectedCategories = mutableStateOf<Set<String>>(emptySet())
+    var selectedSubcategories = mutableStateOf<Set<String>>(emptySet())
     var selectedConditions = mutableStateOf<Set<String>>(emptySet())
     var selectedDeliveryMethods = mutableStateOf<Set<String>>(emptySet())
     var freeShippingOnly = mutableStateOf(false)
     var selectedBrands = mutableStateOf<Set<String>>(emptySet())
     var selectedLocations = mutableStateOf<Set<String>>(emptySet())
 
+    // Each category has its own distinct subcategory list, so any change to
+    // which categories are selected invalidates whatever subcategories were
+    // picked under a previously-selected category — same reasoning as
+    // ListingViewModel.setCategory() on the posting side.
     fun toggleCategory(value: String) {
         selectedCategories.value = selectedCategories.value.toggle(value)
+        selectedSubcategories.value = emptySet()
+    }
+
+    fun toggleSubcategory(value: String) {
+        selectedSubcategories.value = selectedSubcategories.value.toggle(value)
     }
 
     fun toggleCondition(value: String) {
@@ -53,6 +63,7 @@ class SearchViewModel : ViewModel() {
         minPrice.value = ""
         maxPrice.value = ""
         selectedCategories.value = emptySet()
+        selectedSubcategories.value = emptySet()
         selectedConditions.value = emptySet()
         selectedDeliveryMethods.value = emptySet()
         freeShippingOnly.value = false
@@ -82,6 +93,7 @@ fun filterAndSortListings(
     minPrice: Double?,
     maxPrice: Double?,
     categories: Set<String>,
+    subcategories: Set<String>,
     conditions: Set<String>,
     deliveryMethods: Set<String>,
     freeShippingOnly: Boolean,
@@ -92,17 +104,19 @@ fun filterAndSortListings(
         val matchesQuery = query.isBlank() ||
             listing.name.contains(query, ignoreCase = true) ||
             listing.category.contains(query, ignoreCase = true) ||
+            listing.subcategory.contains(query, ignoreCase = true) ||
             listing.brand.contains(query, ignoreCase = true)
         val matchesMin = minPrice == null || listing.price >= minPrice
         val matchesMax = maxPrice == null || listing.price <= maxPrice
         val matchesCategory = categories.isEmpty() || listing.category in categories
+        val matchesSubcategory = subcategories.isEmpty() || listing.subcategory in subcategories
         val matchesCondition = conditions.isEmpty() || listing.condition in conditions
         val matchesDelivery = deliveryMethods.isEmpty() || listing.deliveryMethod in deliveryMethods
         val matchesFreeShipping = !freeShippingOnly || isFreeShipping(listing)
         val matchesBrand = brands.isEmpty() || listing.brand in brands
         val matchesLocation = locations.isEmpty() || listing.sellerProvince in locations
-        matchesQuery && matchesMin && matchesMax && matchesCategory && matchesCondition &&
-            matchesDelivery && matchesFreeShipping && matchesBrand && matchesLocation
+        matchesQuery && matchesMin && matchesMax && matchesCategory && matchesSubcategory &&
+            matchesCondition && matchesDelivery && matchesFreeShipping && matchesBrand && matchesLocation
     }
     return when (sortOption) {
         SortOption.BEST_MATCH -> filtered
