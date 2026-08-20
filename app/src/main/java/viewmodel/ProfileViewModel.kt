@@ -40,4 +40,21 @@ class ProfileViewModel : ViewModel() {
             result.onFailure { errorMessage.value = it.message }
         }
     }
+
+    var isChangingUsername = mutableStateOf(false)
+    var usernameErrorMessage = mutableStateOf<String?>(null)
+
+    fun changeUsername(newUsername: String, onSuccess: () -> Unit) {
+        isChangingUsername.value = true
+        usernameErrorMessage.value = null
+        viewModelScope.launch {
+            val result = authRepository.changeUsername(newUsername)
+            result.onSuccess {
+                profile.value = profile.value?.copy(username = newUsername.trim())
+                onSuccess()
+            }
+            result.onFailure { usernameErrorMessage.value = it.message ?: "Failed to change username" }
+            isChangingUsername.value = false
+        }
+    }
 }

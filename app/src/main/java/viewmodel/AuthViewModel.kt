@@ -120,6 +120,13 @@ class AuthViewModel : ViewModel() {
             onResult(result.getOrNull()?.profileComplete ?: false)
         }
     }
+
+    // Fire-and-forget: called from authGate on every real-account login so
+    // an existing account picks up a username on its next sign-in without
+    // ever blocking navigation on it. A no-op if one already exists.
+    fun ensureUsername() {
+        viewModelScope.launch { repository.ensureUsername() }
+    }
     fun sendPasswordReset(email: String, onSuccess: () -> Unit) {
         if (email.isBlank()) {
             _errorMessage.value = "Please enter your email"

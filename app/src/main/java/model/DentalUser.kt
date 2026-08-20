@@ -23,5 +23,12 @@ data class DentalUser(
     // checkout fields next time, and is overwritten whenever the buyer edits
     // it at checkout. See CartViewModel.checkout().
     val deliveryAddress: String = "",
-    val deliveryContactPhone: String = ""
+    val deliveryContactPhone: String = "",
+    // Public handle, separate from `name` — shown on ProfileScreen (self)
+    // and SellerProfileScreen (others). Case preserved here for display;
+    // uniqueness is enforced against the lowercased form via the
+    // usernames/{name} reservation collection (see AuthRepository).
+    // Auto-generated silently ("user" + digits) for every account that
+    // doesn't have one yet, editable afterward from ProfileScreen.
+    val username: String = ""
 )

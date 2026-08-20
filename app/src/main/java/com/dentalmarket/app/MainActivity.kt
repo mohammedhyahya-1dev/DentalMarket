@@ -131,6 +131,10 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
                     }
                     authViewModel.isAnonymous -> proceedAsGuest()
                     else -> {
+                        // Fire-and-forget — backfills a username for any
+                        // pre-existing account that doesn't have one yet,
+                        // without delaying the navigation below.
+                        authViewModel.ensureUsername()
                         authViewModel.checkProfileComplete { complete ->
                             val destination = if (!complete) "completeProfile" else "marketplace"
                             navController.navigate(destination) {

@@ -84,6 +84,10 @@ fun SellerProfileScreen(
 
     var allListings by remember { mutableStateOf<List<Listing>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
+    // The one cross-user profile read in the app — see
+    // AuthRepository.getPublicUsername and publicProfiles/{uid} in
+    // firestore.rules. Null while loading or if this seller has none yet.
+    var username by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(sellerId) {
         listingRepository.getListingsBySeller(sellerId)
@@ -91,6 +95,7 @@ fun SellerProfileScreen(
         isLoading = false
         ratingViewModel.loadSellerSummaries(listOf(sellerId))
         followViewModel.load(sellerId)
+        authRepository.getPublicUsername(sellerId).onSuccess { username = it }
     }
 
     // Same status filter MarketplaceScreen/SearchResultsScreen apply via
@@ -178,6 +183,14 @@ fun SellerProfileScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(sellerName, style = MaterialTheme.typography.headlineSmall)
+
+                username?.takeIf { it.isNotBlank() }?.let {
+                    Text(
+                        "@$it",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
 
                 sellerSummaries[sellerId]?.let { summary ->
                     Spacer(modifier = Modifier.height(4.dp))

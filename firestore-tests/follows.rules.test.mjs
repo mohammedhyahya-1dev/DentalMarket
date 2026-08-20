@@ -23,7 +23,11 @@ let testEnv;
 
 before(async () => {
   testEnv = await initializeTestEnvironment({
-    projectId: 'demo-dentalmarket-rules-test',
+    // Own project id per test file — Node's test runner runs files
+    // concurrently by default, and every file's beforeEach calls
+    // clearFirestore(); sharing one project id let one file's clear wipe
+    // data another file's test had just seeded mid-run.
+    projectId: 'demo-dentalmarket-rules-test-follows',
     firestore: {
       rules: readFileSync('../firestore.rules', 'utf8'),
       host: 'localhost',

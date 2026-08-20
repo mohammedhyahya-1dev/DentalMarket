@@ -37,6 +37,7 @@ fun ProfileScreen(
     val isLoading = viewModel.isLoading.value
     val isEmailVerified = viewModel.isEmailVerified.value
     val resendSuccess = viewModel.resendSuccess.value
+    var showUsernameDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.loadProfile()
@@ -94,6 +95,23 @@ fun ProfileScreen(
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+
+                    // Blank only in the brief window between account
+                    // creation and AuthRepository.ensureUsername()'s async
+                    // backfill completing — nothing to show or edit yet.
+                    profile?.username?.takeIf { it.isNotBlank() }?.let { username ->
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "@$username",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                            TextButton(onClick = { showUsernameDialog = true }) {
+                                Text("Edit")
+                            }
+                        }
+                    }
 
                     if (viewModel.isAdmin) {
                         Spacer(modifier = Modifier.height(10.dp))
@@ -208,6 +226,68 @@ fun ProfileScreen(
             }
         }
     }
+
+    if (showUsernameDialog) {
+        UsernameEditDialog(
+            currentUsername = profile?.username ?: "",
+            isSaving = viewModel.isChangingUsername.value,
+            errorMessage = viewModel.usernameErrorMessage.value,
+            onDismiss = { showUsernameDialog = false },
+            onSave = { newUsername ->
+                viewModel.changeUsername(newUsername) { showUsernameDialog = false }
+            }
+        )
+    }
+}
+
+@Composable
+private fun UsernameEditDialog(
+    currentUsername: String,
+    isSaving: Boolean,
+    errorMessage: String?,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit
+) {
+    var text by remember { mutableStateOf(currentUsername) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit Username") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    label = { Text("Username") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "3-20 characters, start with a letter, letters/numbers/underscores only.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+                errorMessage?.let {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSave(text) },
+                enabled = !isSaving && text.isNotBlank() && text != currentUsername
+            ) {
+                Text(if (isSaving) "Saving..." else "Save")
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss, enabled = !isSaving) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @Composable

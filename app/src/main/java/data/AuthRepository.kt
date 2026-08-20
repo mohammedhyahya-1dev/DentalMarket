@@ -5,6 +5,7 @@ import com.google.firebase.FirebaseTooManyRequestsException
 import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
@@ -16,6 +17,10 @@ class AuthRepository {
     private val firestore = FirebaseFirestore.getInstance()
 
     private val adminEmails = listOf("p.mohammed.h.yahya@gmail.com")
+
+    private val usernameReservedWords = setOf(
+        "admin", "administrator", "support", "dentalmarket", "moderator", "official"
+    )
 
     val isLoggedIn: Boolean
         get() = auth.currentUser != null
@@ -61,6 +66,7 @@ class AuthRepository {
 
             val user = DentalUser(uid = uid, name = name, email = email)
             firestore.collection("users").document(uid).set(user).awaitResult()
+            ensureUsername()
 
             // Fire the verification email right away so it's waiting in
             // their inbox by the time they check.
@@ -116,6 +122,7 @@ class AuthRepository {
                 } else {
                     val user = DentalUser(uid = linkedUser.uid, name = "", email = email)
                     firestore.collection("users").document(linkedUser.uid).set(user).awaitResult()
+                    ensureUsername()
                     linkedUser.sendEmailVerification().awaitResult()
                     Result.success(true)
                 }
@@ -158,6 +165,7 @@ class AuthRepository {
                 } else {
                     val user = DentalUser(uid = newUser.uid, name = "", email = email)
                     firestore.collection("users").document(newUser.uid).set(user).awaitResult()
+                    ensureUsername()
                     newUser.sendEmailVerification().awaitResult()
                     Result.success(false)
                 }
@@ -202,6 +210,7 @@ class AuthRepository {
                     email = user.email ?: ""
                 )
                 firestore.collection("users").document(user.uid).set(newUser).awaitResult()
+                ensureUsername()
             }
 
             // Reaching here with guestUser != null means linkWithCredential
@@ -276,6 +285,130 @@ class AuthRepository {
                 .set(updates, SetOptions.merge())
                 .awaitResult()
             Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private fun normalizeUsername(username: String): String = username.trim().lowercase()
+
+    // "3-20 chars, must start with a letter, otherwise letters/digits/underscore
+    // only" — checked client-side for UX (same posture as isPasswordStrong
+    // above, which is also never enforced in firestore.rules); the part that
+    // actually needs server-side enforcement is uniqueness, which the
+    // usernames/{name} reservation collection's rules handle instead.
+    private fun isValidUsernameFormat(username: String): Boolean {
+        return username.matches(Regex("^[a-zA-Z][a-zA-Z0-9_]{2,19}$"))
+    }
+
+    private fun isUsernameAllowed(username: String): Boolean {
+        return isValidUsernameFormat(username) &&
+            normalizeUsername(username) !in usernameReservedWords
+    }
+
+    // Claims usernames/{candidate} via .set() — same convention every other
+    // reservation collection in this file uses (follows/reports/watchlist):
+    // rules distinguish create (doc doesn't exist) from update (doc exists),
+    // so a collision surfaces as PERMISSION_DENIED here, not a thrown
+    // "already exists" error. Retries with a fresh candidate on collision;
+    // gives up silently after a handful of tries rather than blocking
+    // whatever login/signup flow called this.
+    private suspend fun generateAndClaimUsername(uid: String): String? {
+        repeat(5) {
+            val candidate = "user" + (10_000_000..99_999_999).random()
+            try {
+                firestore.collection("usernames").document(candidate)
+                    .set(mapOf("uid" to uid)).awaitResult()
+                return candidate
+            } catch (e: FirebaseFirestoreException) {
+                if (e.code != FirebaseFirestoreException.Code.PERMISSION_DENIED) throw e
+                // Collision — candidate already claimed by someone else, retry.
+            }
+        }
+        return null
+    }
+
+    // Backfills a username for an account that doesn't have one yet — called
+    // right after every new-account DentalUser doc is created (signUp,
+    // logInOrSignUp's two branches, signInWithGoogleIdToken), and once per
+    // login for existing accounts via MainActivity's authGate (fire-and-forget,
+    // doesn't delay reaching marketplace). A no-op if the profile already has
+    // a username, so it's always safe to call speculatively.
+    suspend fun ensureUsername(): Result<Unit> {
+        return try {
+            val uid = auth.currentUser?.uid ?: return Result.success(Unit)
+            val userRef = firestore.collection("users").document(uid)
+            val existing = userRef.get().awaitResult().getString("username")
+            if (!existing.isNullOrBlank()) return Result.success(Unit)
+
+            val username = generateAndClaimUsername(uid)
+                ?: return Result.failure(Exception("Couldn't generate a unique username"))
+            userRef.set(mapOf("username" to username), SetOptions.merge()).awaitResult()
+            firestore.collection("publicProfiles").document(uid)
+                .set(mapOf("username" to username)).awaitResult()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // User-initiated rename. Atomic: the new name's reservation, the old
+    // name's release, and DentalUser.username all happen in one Firestore
+    // transaction, so two people racing for the same name can never both
+    // "win" — Firestore reads both docs first (required: all reads before
+    // any writes in a transaction), then either aborts cleanly with "taken"
+    // or commits every write together. A genuine write-write race (two
+    // transactions touching the same doc at once) is retried by the SDK
+    // automatically; this thrown "taken" case is a normal business-logic
+    // failure, not a race, so it's surfaced once rather than retried.
+    suspend fun changeUsername(newUsername: String): Result<Unit> {
+        val trimmed = newUsername.trim()
+        if (!isValidUsernameFormat(trimmed)) {
+            return Result.failure(Exception("Usernames must be 3-20 characters, start with a letter, and use only letters, numbers, and underscores."))
+        }
+        if (!isUsernameAllowed(trimmed)) {
+            return Result.failure(Exception("That username isn't available."))
+        }
+
+        val uid = auth.currentUser?.uid ?: return Result.failure(Exception("Not signed in"))
+        val normalizedNew = normalizeUsername(trimmed)
+        val newRef = firestore.collection("usernames").document(normalizedNew)
+        val userRef = firestore.collection("users").document(uid)
+        val publicProfileRef = firestore.collection("publicProfiles").document(uid)
+
+        return try {
+            firestore.runTransaction { txn ->
+                val newNameDoc = txn.get(newRef)
+                if (newNameDoc.exists() && newNameDoc.getString("uid") != uid) {
+                    throw Exception("That username is already taken.")
+                }
+                val currentUsername = txn.get(userRef).getString("username")
+
+                if (!currentUsername.isNullOrBlank() && normalizeUsername(currentUsername) != normalizedNew) {
+                    txn.delete(firestore.collection("usernames").document(normalizeUsername(currentUsername)))
+                }
+                if (!newNameDoc.exists()) {
+                    txn.set(newRef, mapOf("uid" to uid))
+                }
+                txn.set(userRef, mapOf("username" to trimmed), SetOptions.merge())
+                txn.set(publicProfileRef, mapOf("username" to trimmed))
+                null
+            }.awaitResult()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // The only cross-user profile read in the app — everything else reads
+    // denormalized fields off listings/orders/ratings instead (see
+    // users/{userId}'s own rule comment). Used by SellerProfileScreen so a
+    // changed username shows up immediately rather than being frozen at
+    // whatever it was when the seller last posted a listing.
+    suspend fun getPublicUsername(uid: String): Result<String?> {
+        return try {
+            val doc = firestore.collection("publicProfiles").document(uid).get().awaitResult()
+            Result.success(doc.getString("username"))
         } catch (e: Exception) {
             Result.failure(e)
         }

@@ -32,6 +32,33 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.email in ['p.mohammed.h.yahya@gmail.com'];
     }
 
+    // Mirrors AuthRepository.isValidUsernameFormat/isUsernameAllowed exactly.
+    // Used on every path that writes a username value — usernames/{name}'s
+    // own doc id (the reservation), publicProfiles/{uid}.username (what
+    // SellerProfileScreen shows OTHER users), and users/{userId}.username
+    // (self-only-visible, but validated the same way for consistency and
+    // because it's the source changeUsername's transaction copies from).
+    // Real UX comes from the matching Kotlin checks running first, client-
+    // side; these are the backstop — without them a raw write bypassing the
+    // app could set any of the three straight to "admin".
+    function isValidUsername(name) {
+      return name.matches('^[a-zA-Z][a-zA-Z0-9_]{2,19}$');
+    }
+
+    function isReservedUsername(name) {
+      return name.lower() in
+        ['admin', 'administrator', 'support', 'dentalmarket', 'moderator', 'official'];
+    }
+
+    // users/{userId}.username specifically starts out blank — signUp()'s
+    // initial DentalUser write and completeProfile()'s merge both predate
+    // AuthRepository.ensureUsername() actually filling it in — so unlike
+    // publicProfiles/{uid} (which the app only ever writes once it already
+    // holds a real, validated value), this one has to accept "" too.
+    function isValidOrBlankUsername(name) {
+      return name == '' || (isValidUsername(name) && !isReservedUsername(name));
+    }
+
     // Cross-collection lookup, used wherever a write to another collection
     // needs to be checked against the order it claims to be for (ratings,
     // disputes, dispute-triggered sellerNotifications).
@@ -77,7 +104,13 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       allow list: if false;
-      allow create, update: if isSignedIn() && request.auth.uid == userId;
+      // isValidOrBlankUsername covers the window between account creation
+      // and AuthRepository.ensureUsername() actually filling this in — see
+      // that function's own comment. Every other field on this doc (title,
+      // mobile, deliveryAddress, ...) stays unvalidated here, same as before;
+      // only username gets a rules-level check.
+      allow create, update: if isSignedIn() && request.auth.uid == userId &&
+        isValidOrBlankUsername(request.resource.data.username);
       allow delete: if false;
     }
 
@@ -301,6 +334,51 @@ service cloud.firestore {
         docId == request.auth.uid + '_' + request.resource.data.followingId;
       allow update: if false;
       allow delete: if isSignedIn() && resource.data.followerId == request.auth.uid;
+    }
+
+    // usernames/{normalizedName}: the uniqueness lock for DentalUser.username,
+    // same doc-ID-as-reservation trick as follows/reports/watchlist above —
+    // doc id is the lowercased/normalized username, content is just {uid}.
+    // Firestore rules distinguish create (doc doesn't yet exist) from update
+    // (doc exists) automatically, so a second claim on a taken name falls
+    // through to `allow update: if false` below and is rejected — no
+    // explicit existence check needed here. `get` is open to any signed-in
+    // user since AuthRepository.changeUsername's transaction needs to read
+    // the target name to see if it's free, and the auto-generation retry
+    // loop needs the same for its own collision check.
+    match /usernames/{name} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      // `name` here is the lowercased/normalized doc id (see
+      // AuthRepository.normalizeUsername) — isValidUsername's pattern is
+      // case-insensitive by construction (it just requires *a* letter
+      // first), so checking the normalized id and the reserved list against
+      // it are equivalent to checking the as-typed username.
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid &&
+        isValidUsername(name) && !isReservedUsername(name);
+      allow update: if false;
+      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    // publicProfiles/{uid}: the only piece of users/{uid} readable by anyone
+    // other than the owner/admin — split out specifically so SellerProfileScreen
+    // can show a seller's current username without widening users/{userId}'s
+    // own rule (that document also holds deliveryAddress/mobile/etc., see its
+    // comment above). Unlike Listing.sellerName/sellerProvince, a username is
+    // user-editable after the fact, so it can't be a listing-time snapshot —
+    // this is a live, always-current lookup instead. One doc per account,
+    // holding only the public username.
+    match /publicProfiles/{uid} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      // This is the field SellerProfileScreen shows to OTHER users, so
+      // unlike users/{userId}.username below it's never legitimately blank
+      // (the app only ever writes here once it already holds a real,
+      // validated value) — no blank exception, always isValidUsername.
+      allow create, update: if isSignedIn() && request.auth.uid == uid &&
+        isValidUsername(request.resource.data.username) &&
+        !isReservedUsername(request.resource.data.username);
+      allow delete: if false;
     }
 
     // disputes/{orderId}: one per order, keyed by the orderId itself (same
