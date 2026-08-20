@@ -102,6 +102,7 @@ fun ProductDetailScreen(
     // in MainActivity; a blank subcategory means "whole category".
     onCategoryClick: (category: String, subcategory: String?) -> Unit,
     onSellClick: () -> Unit,
+    onSellerClick: (sellerId: String, sellerName: String) -> Unit,
     watchlistViewModel: WatchlistViewModel = viewModel(),
     ratingViewModel: RatingViewModel = viewModel(),
     reportViewModel: ReportViewModel = viewModel()
@@ -457,11 +458,17 @@ fun ProductDetailScreen(
                     Spacer(modifier = Modifier.height(20.dp))
 
                     if (currentListing.sellerName.isNotBlank()) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clickable {
+                                onSellerClick(currentListing.sellerId, currentListing.sellerName)
+                            }
+                        ) {
                             Text(
                                 "Sold by ${currentListing.sellerName}",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.outline
+                                color = MaterialTheme.colorScheme.primary,
+                                textDecoration = TextDecoration.Underline
                             )
                             sellerSummaries[currentListing.sellerId]?.let { summary ->
                                 Spacer(modifier = Modifier.width(8.dp))

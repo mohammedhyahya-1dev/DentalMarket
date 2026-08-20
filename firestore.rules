@@ -279,6 +279,30 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // follows/{followerId_followingId}: one doc per follower+seller pair,
+    // same doc-id trick as watchlist/{uid}_{listingId}. followingId is
+    // always a seller's uid (a person, not a listing).
+    //
+    // Reads are open to any signed-in user, same posture as ratings/{orderId}
+    // above — follower/following counts on a Seller Profile screen are
+    // public browsing info, and a count() aggregation query needs list-level
+    // read access to be evaluated at all (it can't be scoped down to
+    // "only your own follow docs" the way get() is on watchlist).
+    //
+    // Self-follow is rejected here, not just hidden by the UI never
+    // rendering the button on your own listings — closes the write path
+    // too. Immutable once created: unfollowing deletes the doc rather than
+    // flipping a field, so there's nothing for allow update to permit.
+    match /follows/{docId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() &&
+        request.resource.data.followerId == request.auth.uid &&
+        request.resource.data.followingId != request.auth.uid &&
+        docId == request.auth.uid + '_' + request.resource.data.followingId;
+      allow update: if false;
+      allow delete: if isSignedIn() && resource.data.followerId == request.auth.uid;
+    }
+
     // disputes/{orderId}: one per order, keyed by the orderId itself (same
     // trick as ratings/{orderId}) — a second filing attempt lands on the
     // same doc, which falls through to allow update below and is rejected

@@ -294,9 +294,13 @@ private fun EmptySearchState() {
     }
 }
 
+// Not private: reused as-is by SellerProfileScreen for its own listing grid,
+// scoped to one seller's own SearchViewModel/listings instead of the
+// marketplace-wide set — same Category/Brand/Condition/Price/Delivery-method/
+// Free-shipping facets and Firestore-free filterAndSortListings() either way.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun FilterSheet(
+fun FilterSheet(
     searchViewModel: SearchViewModel,
     availableBrands: List<String>,
     availableLocations: List<String>,

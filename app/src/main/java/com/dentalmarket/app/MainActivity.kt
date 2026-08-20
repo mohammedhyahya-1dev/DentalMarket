@@ -39,6 +39,7 @@ import com.dentalmarket.app.ui.screens.ProductDetailScreen
 import com.dentalmarket.app.ui.screens.ProfileScreen
 import com.dentalmarket.app.ui.screens.ResetPasswordScreen
 import com.dentalmarket.app.ui.screens.SellScreen
+import com.dentalmarket.app.ui.screens.SellerProfileScreen
 import com.dentalmarket.app.ui.theme.DentalMarketTheme
 import com.dentalmarket.app.viewmodel.AuthViewModel
 import com.dentalmarket.app.viewmodel.CartViewModel
@@ -325,7 +326,27 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
                 onCategoryClick = { category, subcategory ->
                     navigateToCategory(category, subcategory)
                 },
-                onSellClick = { navController.navigate("sell") }
+                onSellClick = { navController.navigate("sell") },
+                onSellerClick = { sellerId, sellerName ->
+                    navController.navigate("seller/$sellerId?sellerName=${Uri.encode(sellerName)}")
+                }
+            )
+        }
+        composable(
+            "seller/{sellerId}?sellerName={sellerName}",
+            arguments = listOf(
+                navArgument("sellerId") { type = NavType.StringType },
+                navArgument("sellerName") { type = NavType.StringType; nullable = true; defaultValue = "" }
+            )
+        ) { backStackEntry ->
+            val sellerId = backStackEntry.arguments?.getString("sellerId") ?: ""
+            val sellerName = backStackEntry.arguments?.getString("sellerName") ?: ""
+            SellerProfileScreen(
+                sellerId = sellerId,
+                sellerName = sellerName,
+                onBack = { navController.popBackStack() },
+                onProductClick = { id -> navController.navigate("product/$id") },
+                onRequireLogin = { navController.navigate("login") }
             )
         }
         composable("cart") {
