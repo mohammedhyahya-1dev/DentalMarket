@@ -15,6 +15,9 @@ import com.dentalmarket.app.model.DisputeStatus
 import com.dentalmarket.app.ui.components.OrderStatusTracker
 import com.dentalmarket.app.viewmodel.DisputeViewModel
 import com.dentalmarket.app.viewmodel.OrderViewModel
+import com.dentalmarket.app.model.formatPrice
+import com.dentalmarket.app.model.formatPriceOrFree
+import com.dentalmarket.app.model.roundPrice
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,7 +72,8 @@ fun OrderDetailScreen(
                 Column {
                     Text(currentOrder.listingName, style = MaterialTheme.typography.titleLarge)
                     Text(
-                        "Qty: ${currentOrder.quantity} • $" + "%.2f".format(currentOrder.price * currentOrder.quantity),
+                        "Qty: ${currentOrder.quantity} • " +
+                            formatPrice(roundPrice(currentOrder.price) * currentOrder.quantity),
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -120,7 +124,7 @@ fun OrderDetailScreen(
             Spacer(modifier = Modifier.height(12.dp))
             Text("Safety Fee", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.outline)
             Text(
-                "$" + "%.2f".format(currentOrder.safetyFee),
+                formatPriceOrFree(currentOrder.safetyFee),
                 style = MaterialTheme.typography.bodyLarge
             )
             Spacer(modifier = Modifier.height(12.dp))

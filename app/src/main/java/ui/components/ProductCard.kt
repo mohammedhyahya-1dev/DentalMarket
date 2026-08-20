@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dentalmarket.app.model.Listing
+import com.dentalmarket.app.model.formatPrice
 
 @Composable
 fun ProductCard(
@@ -41,7 +42,7 @@ fun ProductCard(
         ) {
             Text(listing.emoji, fontSize = 40.sp)
             Text(
-                "$" + "%.2f".format(listing.price),
+                formatPrice(listing.price),
                 style = MaterialTheme.typography.labelLarge,
                 color = Color.White,
                 modifier = Modifier

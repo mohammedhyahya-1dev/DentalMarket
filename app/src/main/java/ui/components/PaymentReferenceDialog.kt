@@ -22,6 +22,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.dentalmarket.app.model.Order
 import com.dentalmarket.app.model.PaymentConfig
+import com.dentalmarket.app.model.formatPrice
+import com.dentalmarket.app.model.roundPrice
 
 // Shared by MyOrdersScreen (buyer taps "Enter Payment Reference" on an
 // existing order) and CartScreen (shown automatically right after
@@ -41,7 +43,11 @@ fun PaymentReferenceDialog(
     // Delivery fee is deducted from the seller's payout, not charged to the
     // buyer — only the item price and an opted-in safety fee are collected
     // here.
-    val amountDue = order.price * order.quantity + order.safetyFee
+    // Both parts rounded first, then added, so the "(Item: A + Safety fee: B)"
+    // line below always adds up to the amount the buyer is told to transfer.
+    val itemLineTotal = roundPrice(order.price) * order.quantity
+    val safetyFee = roundPrice(order.safetyFee)
+    val amountDue = itemLineTotal + safetyFee
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -49,13 +55,13 @@ fun PaymentReferenceDialog(
         text = {
             Column {
                 Text(
-                    "Pay $" + "%.2f".format(amountDue) + " via QiCard or ZainCash to:",
+                    "Pay " + formatPrice(amountDue) + " via QiCard or ZainCash to:",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 if (order.safetyFee > 0) {
                     Text(
-                        "(Item: $" + "%.2f".format(order.price * order.quantity) +
-                            " + Safety fee: $" + "%.2f".format(order.safetyFee) + ")",
+                        "(Item: " + formatPrice(itemLineTotal) +
+                            " + Safety fee: " + formatPrice(safetyFee) + ")",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.outline
                     )

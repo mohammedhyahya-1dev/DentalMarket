@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dentalmarket.app.model.CartItem
+import com.dentalmarket.app.model.formatPrice
 
 @Composable
 fun CartItemRow(
@@ -42,7 +43,7 @@ fun CartItemRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(item.listing.name, style = MaterialTheme.typography.titleMedium)
             Text(
-                "$" + "%.2f".format(item.listing.price) + " each",
+                formatPrice(item.listing.price) + " each",
                 style = MaterialTheme.typography.bodyMedium
             )
             Text(
@@ -56,7 +57,7 @@ fun CartItemRow(
             )
             if (item.listing.deliveryMethod == "SELLER_DELIVERS" && item.listing.shippingPrice > 0) {
                 Text(
-                    "+ $" + "%.2f".format(item.listing.shippingPrice) + " shipping",
+                    "+ " + formatPrice(item.listing.shippingPrice) + " shipping",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline
                 )
@@ -64,7 +65,7 @@ fun CartItemRow(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = item.safetyFeeSelected, onCheckedChange = { onToggleSafetyFee() })
                 Text(
-                    "Add buyer safety fee (+$" + "%.2f".format(safetyFeeAmount) + ")",
+                    "Add buyer safety fee (+" + formatPrice(safetyFeeAmount) + ")",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline
                 )

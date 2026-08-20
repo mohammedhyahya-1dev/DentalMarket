@@ -5,6 +5,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -20,6 +22,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.RadioButton
 import com.dentalmarket.app.viewmodel.SpecRow
+import com.dentalmarket.app.model.formatPrice
+import com.dentalmarket.app.model.roundPrice
+import com.dentalmarket.app.model.ThousandsSeparatorTransformation
 import androidx.compose.ui.Alignment
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -169,7 +174,9 @@ fun SellScreen(
         OutlinedTextField(
             value = viewModel.price.value,
             onValueChange = { viewModel.price.value = it },
-            label = { Text("Price ($)") },
+            label = { Text("Price (IQD)") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            visualTransformation = ThousandsSeparatorTransformation,
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -199,18 +206,23 @@ fun SellScreen(
             }
             val shippingToAdd = if (viewModel.deliveryMethod.value == "SELLER_DELIVERS") shippingPriceValue else 0.0
             val breakdown = calculatePayout(priceValue, commissionPercentage, deliveryFeeToSubtract)
-            val deliveryFeeClause = if (deliveryFeeToSubtract > 0) {
-                " and $" + "%.2f".format(deliveryFeeToSubtract) + " delivery fee"
+            val shownDeliveryFee = roundPrice(deliveryFeeToSubtract)
+            val shownShipping = roundPrice(shippingToAdd)
+            // Headline figure adds up from the same rounded numbers the
+            // clauses below quote, rather than rounding the precise estimate.
+            val shownReceives = roundPrice(breakdown.sellerReceives) + shownShipping
+            val deliveryFeeClause = if (shownDeliveryFee > 0) {
+                " and " + formatPrice(shownDeliveryFee) + " delivery fee"
             } else {
                 ""
             }
-            val shippingClause = if (shippingToAdd > 0) {
-                " (includes $" + "%.2f".format(shippingToAdd) + " shipping, kept in full)"
+            val shippingClause = if (shownShipping > 0) {
+                " (includes " + formatPrice(shownShipping) + " shipping, kept in full)"
             } else {
                 ""
             }
             Text(
-                "You'll receive approximately $" + "%.2f".format(breakdown.sellerReceives + shippingToAdd) +
+                "You'll receive approximately " + formatPrice(shownReceives) +
                     " after our ${"%.1f".format(commissionPercentage)}% platform fee" +
                     deliveryFeeClause + shippingClause + ".",
                 style = MaterialTheme.typography.bodySmall,
@@ -231,7 +243,9 @@ fun SellScreen(
             OutlinedTextField(
                 value = viewModel.shippingPrice.value,
                 onValueChange = { viewModel.shippingPrice.value = it },
-                label = { Text("Shipping price ($, 0 for free shipping)") },
+                label = { Text("Shipping price (IQD, 0 for free shipping)") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                visualTransformation = ThousandsSeparatorTransformation,
                 modifier = Modifier.fillMaxWidth().padding(start = 40.dp)
             )
         }
@@ -241,7 +255,8 @@ fun SellScreen(
                 onClick = { viewModel.deliveryMethod.value = "DENTALMARKET_DELIVERS" }
             )
             Text(
-                "DentalMarket delivers (fee deducted from your payout: $" + "%.2f".format(deliveryFeeAmount) + ")",
+                "DentalMarket delivers (fee deducted from your payout: " +
+                    formatPrice(deliveryFeeAmount) + ")",
                 style = MaterialTheme.typography.bodyMedium
             )
         }

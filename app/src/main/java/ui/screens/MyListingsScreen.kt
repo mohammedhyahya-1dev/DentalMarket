@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dentalmarket.app.model.Listing
 import com.dentalmarket.app.viewmodel.MyListingsViewModel
+import com.dentalmarket.app.model.formatPrice
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -117,7 +118,7 @@ fun MyListingCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(listing.name, style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "$" + "%.2f".format(listing.price),
+                        formatPrice(listing.price),
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -136,7 +137,8 @@ fun MyListingCard(
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 if (listing.deliveryMethod == "DENTALMARKET_DELIVERS") {
-                    "Delivery: DentalMarket delivers (fee deducted from your payout: $" + "%.2f".format(deliveryFeeAmount) + ")"
+                    "Delivery: DentalMarket delivers (fee deducted from your payout: " +
+                        formatPrice(deliveryFeeAmount) + ")"
                 } else {
                     "Delivery: Seller delivers"
                 },

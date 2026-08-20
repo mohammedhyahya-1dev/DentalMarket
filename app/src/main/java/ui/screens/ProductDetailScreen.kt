@@ -83,6 +83,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dentalmarket.app.viewmodel.RatingViewModel
 import com.dentalmarket.app.viewmodel.ReportViewModel
 import com.dentalmarket.app.viewmodel.WatchlistViewModel
+import com.dentalmarket.app.model.formatPrice
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -291,7 +292,7 @@ fun ProductDetailScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        "$" + "%.2f".format(currentListing.price),
+                        formatPrice(currentListing.price),
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -308,7 +309,7 @@ fun ProductDetailScreen(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                "+ $" + "%.2f".format(fee) + " Buyer Safety Fee (optional)",
+                                "+ " + formatPrice(fee) + " Buyer Safety Fee (optional)",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.outline
                             )
@@ -337,7 +338,7 @@ fun ProductDetailScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        "Pay via QiCard or ZainCash — you'll submit your transaction reference after placing your order.",
+                        "Pay via QiCard or ZainCash.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.outline
                     )
@@ -416,7 +417,7 @@ fun ProductDetailScreen(
                             if (currentListing.deliveryMethod == "SELLER_DELIVERS" &&
                                 currentListing.shippingPrice > 0.0
                             ) {
-                                "$" + "%.2f".format(currentListing.shippingPrice)
+                                formatPrice(currentListing.shippingPrice)
                             } else {
                                 "Free"
                             },

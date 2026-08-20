@@ -28,6 +28,8 @@ import com.dentalmarket.app.ui.components.PaymentReferenceDialog
 import com.dentalmarket.app.ui.components.PaymentStatusBadge
 import com.dentalmarket.app.viewmodel.OrderViewModel
 import com.dentalmarket.app.viewmodel.RatingViewModel
+import com.dentalmarket.app.model.formatPrice
+import com.dentalmarket.app.model.roundPrice
 
 private val RATABLE_STATUSES = setOf("DELIVERED", "PAID_TO_SELLER")
 
@@ -166,7 +168,7 @@ fun OrderCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(order.listingName, style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "Qty: ${order.quantity} • $" + "%.2f".format(order.price * order.quantity),
+                        "Qty: ${order.quantity} • " + formatPrice(roundPrice(order.price) * order.quantity),
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -193,7 +195,7 @@ fun OrderCard(
             )
             if (order.safetyFee > 0) {
                 Text(
-                    "Safety fee: $" + "%.2f".format(order.safetyFee),
+                    "Safety fee: " + formatPrice(order.safetyFee),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline
                 )

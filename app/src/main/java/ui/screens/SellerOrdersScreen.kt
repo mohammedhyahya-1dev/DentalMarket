@@ -18,6 +18,8 @@ import com.dentalmarket.app.ui.components.OrderStatusTracker
 import com.dentalmarket.app.ui.components.PaymentStatusBadge
 import com.dentalmarket.app.viewmodel.OrderViewModel
 import com.dentalmarket.app.viewmodel.calculatePayout
+import com.dentalmarket.app.model.formatPrice
+import com.dentalmarket.app.model.roundPrice
 
 // Read-only — every order mutation (status advance, payment verify/reject,
 // delivery confirmation) is exclusively admin- or buyer-driven, unchanged by
@@ -83,7 +85,7 @@ private fun SellerOrderCard(order: Order) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(order.listingName, style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "$" + "%.2f".format(order.price * order.quantity) + " • Qty ${order.quantity}",
+                        formatPrice(roundPrice(order.price) * order.quantity) + " • Qty ${order.quantity}",
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -107,30 +109,38 @@ private fun SellerOrderCard(order: Order) {
 @Composable
 private fun PayoutRow(order: Order) {
     val breakdown = calculatePayout(order.price * order.quantity, order.commissionPercentage, order.deliveryFee)
+    // Each figure is rounded once, and the closing line is built from those
+    // rounded parts — so the subtraction shown on screen actually works out
+    // instead of being a separately-rounded version of the precise total.
+    val shownItemTotal = roundPrice(order.price) * order.quantity
+    val shownCommission = roundPrice(breakdown.commissionAmount)
+    val shownDeliveryFee = roundPrice(breakdown.deliveryFee)
+    val shownShipping = roundPrice(order.shippingFee)
+    val shownReceives = shownItemTotal - shownCommission - shownDeliveryFee + shownShipping
     Column {
         Text(
-            "Item total: $" + "%.2f".format(breakdown.itemTotal) +
-                "  •  Platform fee (${"%.1f".format(order.commissionPercentage)}%): $" +
-                "%.2f".format(breakdown.commissionAmount),
+            "Item total: " + formatPrice(shownItemTotal) +
+                "  •  Platform fee (${"%.1f".format(order.commissionPercentage)}%): " +
+                formatPrice(shownCommission),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.outline
         )
-        if (breakdown.deliveryFee > 0) {
+        if (shownDeliveryFee > 0) {
             Text(
-                "Delivery fee: $" + "%.2f".format(breakdown.deliveryFee),
+                "Delivery fee: " + formatPrice(shownDeliveryFee),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.outline
             )
         }
-        if (order.shippingFee > 0) {
+        if (shownShipping > 0) {
             Text(
-                "Shipping (kept in full): $" + "%.2f".format(order.shippingFee),
+                "Shipping (kept in full): " + formatPrice(shownShipping),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.outline
             )
         }
         Text(
-            "You receive: $" + "%.2f".format(breakdown.sellerReceives + order.shippingFee),
+            "You receive: " + formatPrice(shownReceives),
             style = MaterialTheme.typography.bodyMedium
         )
     }

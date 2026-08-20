@@ -14,6 +14,8 @@ import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
@@ -30,6 +32,7 @@ import com.dentalmarket.app.viewmodel.MarketplaceViewModel
 import com.dentalmarket.app.viewmodel.SearchViewModel
 import com.dentalmarket.app.viewmodel.SortOption
 import com.dentalmarket.app.viewmodel.filterAndSortListings
+import com.dentalmarket.app.model.ThousandsSeparatorTransformation
 
 // A separate, additive destination from MarketplaceScreen's own lightweight
 // inline search/category filter (which is left exactly as it is) — reached
@@ -329,15 +332,19 @@ private fun FilterSheet(
                 OutlinedTextField(
                     value = searchViewModel.minPrice.value,
                     onValueChange = { searchViewModel.minPrice.value = it },
-                    label = { Text("Min $") },
+                    label = { Text("Min IQD") },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    visualTransformation = ThousandsSeparatorTransformation,
                     modifier = Modifier.weight(1f)
                 )
                 OutlinedTextField(
                     value = searchViewModel.maxPrice.value,
                     onValueChange = { searchViewModel.maxPrice.value = it },
-                    label = { Text("Max $") },
+                    label = { Text("Max IQD") },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    visualTransformation = ThousandsSeparatorTransformation,
                     modifier = Modifier.weight(1f)
                 )
             }

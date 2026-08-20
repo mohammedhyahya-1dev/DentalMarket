@@ -44,6 +44,8 @@ import com.dentalmarket.app.ui.components.PaymentReferenceDialog
 import com.dentalmarket.app.ui.components.VerifyEmailPrompt
 import com.dentalmarket.app.viewmodel.CartViewModel
 import com.dentalmarket.app.viewmodel.OrderViewModel
+import com.dentalmarket.app.model.formatPrice
+import com.dentalmarket.app.model.roundPrice
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -123,22 +125,25 @@ fun CartScreen(
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
                     }
-                    val itemTotal = cartItems.sumOf { it.listing.price * it.quantity }
+                    // Each part is rounded the way CartItemRow displays it,
+                    // then summed — rounding the precise total instead would
+                    // let two rows reading "45 IQD" sit above a "89 IQD" total.
+                    val itemTotal = cartItems.sumOf { roundPrice(it.listing.price) * it.quantity }
                     val safetyFeeTotal = cartItems
                         .filter { it.safetyFeeSelected }
-                        .sumOf { safetyFeeAmount }
+                        .sumOf { roundPrice(safetyFeeAmount) }
                     // Flat per listing, not multiplied by quantity — same
                     // treatment as safetyFeeTotal above.
                     val shippingTotal = cartItems
                         .filter { it.listing.deliveryMethod == "SELLER_DELIVERS" }
-                        .sumOf { it.listing.shippingPrice }
+                        .sumOf { roundPrice(it.listing.shippingPrice) }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "Total: $" + "%.2f".format(itemTotal + safetyFeeTotal + shippingTotal),
+                            "Total: " + formatPrice(itemTotal + safetyFeeTotal + shippingTotal),
                             style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.primary
                         )

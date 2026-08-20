@@ -9,6 +9,7 @@ import com.dentalmarket.app.data.CommissionConfigRepository
 import com.dentalmarket.app.data.DeliveryConfigRepository
 import com.dentalmarket.app.data.ListingRepository
 import com.dentalmarket.app.model.Listing
+import com.dentalmarket.app.model.roundPrice
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 
@@ -190,7 +191,12 @@ class ListingViewModel : ViewModel() {
                 return@launch
             }
 
-            val shippingPriceValue = shippingPrice.value.toDoubleOrNull() ?: 0.0
+            // IQD is displayed as whole numbers, so store whole numbers: every
+            // new or edited listing is clean from here on, and only pre-existing
+            // fractional data still displays rounded. Rounds the seller's own
+            // input only — no commission, fee or payout math is affected.
+            val roundedPrice = roundPrice(priceValue)
+            val shippingPriceValue = roundPrice(shippingPrice.value.toDoubleOrNull() ?: 0.0)
 
             if (editingId != null) {
                 val listing = Listing(
@@ -201,7 +207,7 @@ class ListingViewModel : ViewModel() {
                     category = category.value,
                     subcategory = subcategory.value,
                     condition = condition.value,
-                    price = priceValue,
+                    price = roundedPrice,
                     description = description.value,
                     emoji = emoji.value,
                     status = editingStatus,
@@ -228,7 +234,7 @@ class ListingViewModel : ViewModel() {
                     category = category.value,
                     subcategory = subcategory.value,
                     condition = condition.value,
-                    price = priceValue,
+                    price = roundedPrice,
                     description = description.value,
                     emoji = emoji.value,
                     specifics = specifics.associate { it.key.value.trim() to it.value.value.trim() }.filterKeys { it.isNotBlank() },

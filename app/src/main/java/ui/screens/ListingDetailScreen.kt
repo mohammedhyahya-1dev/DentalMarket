@@ -15,6 +15,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dentalmarket.app.viewmodel.MyListingsViewModel
 import com.dentalmarket.app.viewmodel.calculatePayout
+import com.dentalmarket.app.model.formatPrice
+import com.dentalmarket.app.model.roundPrice
 
 // Read-only view of a seller's own listing, reached by tapping a card in
 // My Listings. Unlike ProductDetailScreen (the buyer-facing marketplace
@@ -74,7 +76,7 @@ fun ListingDetailScreen(
                 Column {
                     Text(currentListing.name, style = MaterialTheme.typography.titleLarge)
                     Text(
-                        "$" + "%.2f".format(currentListing.price),
+                        formatPrice(currentListing.price),
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -106,18 +108,23 @@ fun ListingDetailScreen(
             if (commissionPercentage != null) {
                 Spacer(modifier = Modifier.height(12.dp))
                 val breakdown = calculatePayout(currentListing.price, commissionPercentage, deliveryFeeToSubtract)
-                val deliveryFeeClause = if (deliveryFeeToSubtract > 0) {
-                    " and $" + "%.2f".format(deliveryFeeToSubtract) + " delivery fee"
+                val shownDeliveryFee = roundPrice(deliveryFeeToSubtract)
+                val shownShipping = roundPrice(shippingToAdd)
+                // Headline figure adds up from the same rounded numbers the
+                // clauses below quote, rather than rounding the precise estimate.
+                val shownReceives = roundPrice(breakdown.sellerReceives) + shownShipping
+                val deliveryFeeClause = if (shownDeliveryFee > 0) {
+                    " and " + formatPrice(shownDeliveryFee) + " delivery fee"
                 } else {
                     ""
                 }
-                val shippingClause = if (shippingToAdd > 0) {
-                    " (includes $" + "%.2f".format(shippingToAdd) + " shipping, kept in full)"
+                val shippingClause = if (shownShipping > 0) {
+                    " (includes " + formatPrice(shownShipping) + " shipping, kept in full)"
                 } else {
                     ""
                 }
                 Text(
-                    "You'll receive approximately $" + "%.2f".format(breakdown.sellerReceives + shippingToAdd) +
+                    "You'll receive approximately " + formatPrice(shownReceives) +
                         " after our ${"%.1f".format(commissionPercentage)}% platform fee" +
                         deliveryFeeClause + shippingClause + ".",
                     style = MaterialTheme.typography.bodySmall,
@@ -129,7 +136,8 @@ fun ListingDetailScreen(
             Text("Delivery", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.outline)
             Text(
                 if (currentListing.deliveryMethod == "DENTALMARKET_DELIVERS") {
-                    "DentalMarket delivers (fee deducted from your payout: $" + "%.2f".format(deliveryFeeAmount) + ")"
+                    "DentalMarket delivers (fee deducted from your payout: " +
+                        formatPrice(deliveryFeeAmount) + ")"
                 } else {
                     "Seller delivers"
                 },
