@@ -328,6 +328,79 @@ class AuthRepository {
         return null
     }
 
+    // Step A for a user-typed rename: claims (or, if this uid already owns
+    // it, confirms) usernames/{normalized} in its own transaction, separate
+    // from step B below. firestore.rules' isOwnedUsername can only see state
+    // that was already committed BEFORE the transaction it's guarding
+    // started — verified empirically against the emulator, a rule can never
+    // see a write staged earlier in that SAME transaction — so this has to
+    // fully commit before step B (writeUsernameToProfile) even starts, or
+    // isOwnedUsername would find nothing there yet.
+    private suspend fun claimUsernameReservation(uid: String, normalized: String): Result<Unit> {
+        val ref = firestore.collection("usernames").document(normalized)
+        return try {
+            firestore.runTransaction { txn ->
+                val doc = txn.get(ref)
+                if (doc.exists() && doc.getString("uid") != uid) {
+                    throw Exception("That username is already taken.")
+                }
+                if (!doc.exists()) {
+                    txn.set(ref, mapOf("uid" to uid))
+                }
+                null
+            }.awaitResult()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // Step B, shared by both ensureUsername and changeUsername: only ever
+    // called after step A (claiming the NEW reservation) has already
+    // committed, so firestore.rules' isOwnedUsername check on this write can
+    // see it. Frees whatever OLD reservation is being replaced, if any —
+    // for ensureUsername there never is one (it only runs when the profile
+    // has no username yet), so that branch is simply a no-op there. Retried
+    // once on failure: step A is already durable at this point, so a
+    // transient failure here just needs a second attempt rather than
+    // surfacing an error and leaving the user's reservation claimed but not
+    // yet reflected on their profile.
+    private suspend fun writeUsernameToProfile(uid: String, username: String): Result<Unit> {
+        val normalizedNew = normalizeUsername(username)
+        val userRef = firestore.collection("users").document(uid)
+        val publicProfileRef = firestore.collection("publicProfiles").document(uid)
+
+        suspend fun attempt(): Result<Unit> = try {
+            firestore.runTransaction { txn ->
+                val currentUsername = txn.get(userRef).getString("username")
+                if (!currentUsername.isNullOrBlank() && normalizeUsername(currentUsername) != normalizedNew) {
+                    txn.delete(firestore.collection("usernames").document(normalizeUsername(currentUsername)))
+                }
+                txn.set(userRef, mapOf("username" to username), SetOptions.merge())
+                txn.set(publicProfileRef, mapOf("username" to username))
+                null
+            }.awaitResult()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+
+        val first = attempt()
+        if (first.isSuccess) return first
+        val second = attempt()
+        // Both attempts failed — the reservation from step A is still valid
+        // and still theirs (claimUsernameReservation already committed), so
+        // this is recoverable, not a dead end: simply retrying changeUsername
+        // with the same name will find they already own the reservation and
+        // go straight to this step again. Worth saying so rather than
+        // surfacing whatever raw SDK exception (e.g. an offline/timeout
+        // message) attempt() caught — same posture as
+        // resendVerificationEmail's rate-limit translation above.
+        return second.takeIf { it.isSuccess } ?: Result.failure(
+            Exception("Your new username was reserved, but we couldn't save it to your profile — please try again.")
+        )
+    }
+
     // Backfills a username for an account that doesn't have one yet — called
     // right after every new-account DentalUser doc is created (signUp,
     // logInOrSignUp's two branches, signInWithGoogleIdToken), and once per
@@ -341,26 +414,23 @@ class AuthRepository {
             val existing = userRef.get().awaitResult().getString("username")
             if (!existing.isNullOrBlank()) return Result.success(Unit)
 
+            // Step A: generateAndClaimUsername already claims the reservation
+            // on its own, via .set(), before returning — same shape as
+            // claimUsernameReservation above, just with a random candidate
+            // instead of a user-typed one.
             val username = generateAndClaimUsername(uid)
                 ?: return Result.failure(Exception("Couldn't generate a unique username"))
-            userRef.set(mapOf("username" to username), SetOptions.merge()).awaitResult()
-            firestore.collection("publicProfiles").document(uid)
-                .set(mapOf("username" to username)).awaitResult()
-            Result.success(Unit)
+            // Step B.
+            writeUsernameToProfile(uid, username)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    // User-initiated rename. Atomic: the new name's reservation, the old
-    // name's release, and DentalUser.username all happen in one Firestore
-    // transaction, so two people racing for the same name can never both
-    // "win" — Firestore reads both docs first (required: all reads before
-    // any writes in a transaction), then either aborts cleanly with "taken"
-    // or commits every write together. A genuine write-write race (two
-    // transactions touching the same doc at once) is retried by the SDK
-    // automatically; this thrown "taken" case is a normal business-logic
-    // failure, not a race, so it's surfaced once rather than retried.
+    // User-initiated rename, two steps: claimUsernameReservation (step A)
+    // must fully commit before writeUsernameToProfile (step B) starts — see
+    // both functions' own comments for why a single transaction spanning
+    // both can't work with firestore.rules' isOwnedUsername check.
     suspend fun changeUsername(newUsername: String): Result<Unit> {
         val trimmed = newUsername.trim()
         if (!isValidUsernameFormat(trimmed)) {
@@ -372,32 +442,11 @@ class AuthRepository {
 
         val uid = auth.currentUser?.uid ?: return Result.failure(Exception("Not signed in"))
         val normalizedNew = normalizeUsername(trimmed)
-        val newRef = firestore.collection("usernames").document(normalizedNew)
-        val userRef = firestore.collection("users").document(uid)
-        val publicProfileRef = firestore.collection("publicProfiles").document(uid)
 
-        return try {
-            firestore.runTransaction { txn ->
-                val newNameDoc = txn.get(newRef)
-                if (newNameDoc.exists() && newNameDoc.getString("uid") != uid) {
-                    throw Exception("That username is already taken.")
-                }
-                val currentUsername = txn.get(userRef).getString("username")
+        val claimResult = claimUsernameReservation(uid, normalizedNew)
+        if (claimResult.isFailure) return claimResult
 
-                if (!currentUsername.isNullOrBlank() && normalizeUsername(currentUsername) != normalizedNew) {
-                    txn.delete(firestore.collection("usernames").document(normalizeUsername(currentUsername)))
-                }
-                if (!newNameDoc.exists()) {
-                    txn.set(newRef, mapOf("uid" to uid))
-                }
-                txn.set(userRef, mapOf("username" to trimmed), SetOptions.merge())
-                txn.set(publicProfileRef, mapOf("username" to trimmed))
-                null
-            }.awaitResult()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+        return writeUsernameToProfile(uid, trimmed)
     }
 
     // The only cross-user profile read in the app — everything else reads

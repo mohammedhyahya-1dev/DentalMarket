@@ -50,13 +50,31 @@ service cloud.firestore {
         ['admin', 'administrator', 'support', 'dentalmarket', 'moderator', 'official'];
     }
 
+    // Closes the gap format/reserved-word checks alone don't: without this,
+    // any well-formed, non-reserved value passes, even one nobody actually
+    // holds a usernames/{name} reservation for — two different accounts
+    // could each set the identical public username. get()/exists() here
+    // read the database as of the START of the CURRENT transaction/write,
+    // never a write staged earlier in that same transaction (verified
+    // empirically against the emulator) — so this only works because
+    // AuthRepository's two-step writes always let the usernames/{name}
+    // claim commit as its own transaction FIRST, before this document's
+    // write is even attempted. A single transaction that tried to both
+    // claim the reservation and satisfy this check could never work.
+    function isOwnedUsername(value) {
+      let normalized = value.lower();
+      return exists(/databases/$(database)/documents/usernames/$(normalized)) &&
+        get(/databases/$(database)/documents/usernames/$(normalized)).data.uid == request.auth.uid;
+    }
+
     // users/{userId}.username specifically starts out blank — signUp()'s
     // initial DentalUser write and completeProfile()'s merge both predate
     // AuthRepository.ensureUsername() actually filling it in — so unlike
     // publicProfiles/{uid} (which the app only ever writes once it already
     // holds a real, validated value), this one has to accept "" too.
     function isValidOrBlankUsername(name) {
-      return name == '' || (isValidUsername(name) && !isReservedUsername(name));
+      return name == '' ||
+        (isValidUsername(name) && !isReservedUsername(name) && isOwnedUsername(name));
     }
 
     // Cross-collection lookup, used wherever a write to another collection
@@ -375,9 +393,12 @@ service cloud.firestore {
       // unlike users/{userId}.username below it's never legitimately blank
       // (the app only ever writes here once it already holds a real,
       // validated value) — no blank exception, always isValidUsername.
+      // isOwnedUsername (see its own comment above) is what actually stops
+      // two accounts from ending up with the identical public username.
       allow create, update: if isSignedIn() && request.auth.uid == uid &&
         isValidUsername(request.resource.data.username) &&
-        !isReservedUsername(request.resource.data.username);
+        !isReservedUsername(request.resource.data.username) &&
+        isOwnedUsername(request.resource.data.username);
       allow delete: if false;
     }
 

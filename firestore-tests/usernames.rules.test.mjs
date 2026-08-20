@@ -105,6 +105,13 @@ test('7. publicProfiles read is open to any signed-in user', async () => {
 });
 
 test('8. publicProfiles write is owner-only', async () => {
+  // bob's own write now also needs a real reservation behind it (see tests
+  // 13-15 below) — seeded here so this test stays focused on ownership,
+  // not uniqueness.
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await ctx.firestore().collection('usernames').doc('bobsmith').set({ uid: 'bob' });
+  });
+
   const alice = testEnv.authenticatedContext('alice').firestore();
   const bob = testEnv.authenticatedContext('bob').firestore();
 
@@ -168,5 +175,69 @@ test('12. mixed-case "JohnDoe" is a valid claim, and blocks "johndoe" afterward'
   const bob = testEnv.authenticatedContext('bob').firestore();
   await assertFails(
     bob.collection('usernames').doc('johndoe').set({ uid: 'bob' })
+  );
+});
+
+// The exact collision this whole isOwnedUsername check exists to close (see
+// firestore.rules' own comment on the function) — confirmed live against a
+// real emulator before the fix: two different, unrelated uids could each set
+// publicProfiles/{uid}.username to the identical value with zero
+// usernames/{name} reservation behind either one. Both must now be denied.
+test('13. publicProfiles/{uid}.username with NO matching reservation is now denied', async () => {
+  const alice = testEnv.authenticatedContext('alice').firestore();
+  await assertFails(
+    alice.collection('publicProfiles').doc('alice').set({ username: 'testcase123' })
+  );
+});
+
+test('14. the exact two-user collision from before the fix: both now denied, neither wins', async () => {
+  const a = testEnv.authenticatedContext('userA').firestore();
+  const b = testEnv.authenticatedContext('userB').firestore();
+
+  await assertFails(
+    a.collection('publicProfiles').doc('userA').set({ username: 'testcase123' })
+  );
+  await assertFails(
+    b.collection('publicProfiles').doc('userB').set({ username: 'testcase123' })
+  );
+});
+
+// Same gap, same fix, on users/{uid}.username — isValidOrBlankUsername's
+// non-blank branch now requires isOwnedUsername too.
+test('15. the exact two-user collision on users/{uid}.username: both now denied', async () => {
+  const a = testEnv.authenticatedContext('userA').firestore();
+  const b = testEnv.authenticatedContext('userB').firestore();
+
+  await assertFails(
+    a.collection('users').doc('userA').set(
+      { uid: 'userA', name: 'A', email: 'a@x.com', username: 'testcase456' }
+    )
+  );
+  await assertFails(
+    b.collection('users').doc('userB').set(
+      { uid: 'userB', name: 'B', email: 'b@x.com', username: 'testcase456' }
+    )
+  );
+});
+
+// The legitimate two-step flow still has to work: claim the reservation as
+// its own, separately-committed write (step A — mirrors
+// AuthRepository.claimUsernameReservation), THEN the profile write (step B
+// — mirrors writeUsernameToProfile) succeeds because isOwnedUsername now
+// finds the already-committed reservation.
+test('16. legitimate two-step claim-then-write still succeeds for both users and publicProfiles', async () => {
+  const alice = testEnv.authenticatedContext('alice').firestore();
+
+  await assertSucceeds(
+    alice.collection('usernames').doc('legituser').set({ uid: 'alice' })
+  );
+  await assertSucceeds(
+    alice.collection('users').doc('alice').set(
+      { uid: 'alice', name: 'Alice', email: 'a@example.com', username: 'legituser' },
+      { merge: true }
+    )
+  );
+  await assertSucceeds(
+    alice.collection('publicProfiles').doc('alice').set({ username: 'legituser' })
   );
 });
