@@ -5,6 +5,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -14,13 +15,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dentalmarket.app.data.ListingRepository
 import com.dentalmarket.app.model.Listing
 import com.dentalmarket.app.ui.components.ProductCard
-import com.dentalmarket.app.viewmodel.CartViewModel
 import com.dentalmarket.app.viewmodel.WatchlistViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WatchlistScreen(
-    cartViewModel: CartViewModel,
     onProductClick: (String) -> Unit,
     onBack: () -> Unit,
     watchlistViewModel: WatchlistViewModel = viewModel()
@@ -76,13 +75,23 @@ fun WatchlistScreen(
                     contentPadding = PaddingValues(vertical = 12.dp)
                 ) {
                     items(watchedListings, key = { it.id }) { listing ->
-                        ProductCard(
-                            listing = listing,
-                            onClick = { onProductClick(listing.id) },
-                            onAddToCart = { cartViewModel.addToCart(listing) },
-                            isWatched = true,
-                            onToggleWatch = { watchlistViewModel.toggleWatch(listing.id) }
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            ProductCard(
+                                listing = listing,
+                                onClick = { onProductClick(listing.id) },
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(onClick = { watchlistViewModel.toggleWatch(listing.id) }) {
+                                Icon(
+                                    Icons.Filled.Favorite,
+                                    contentDescription = "Remove from watchlist",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
                     }
                 }
             }

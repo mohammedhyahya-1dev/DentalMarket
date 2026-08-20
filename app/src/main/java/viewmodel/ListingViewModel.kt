@@ -64,6 +64,10 @@ class ListingViewModel : ViewModel() {
     // field doesn't force the whole list to redraw.
     var specifics = mutableStateListOf<SpecRow>()
 
+    fun updateName(value: String) {
+        name.value = value
+    }
+
     // Picking a new top-level category invalidates whatever subcategory was
     // chosen under the previous one (each category has its own distinct
     // subcategory list) — always route category changes through here rather
@@ -71,6 +75,14 @@ class ListingViewModel : ViewModel() {
     fun setCategory(newLabel: String) {
         category.value = newLabel
         subcategory.value = ""
+    }
+
+    fun setSubcategory(newLabel: String) {
+        subcategory.value = newLabel
+    }
+
+    fun updateBrand(value: String) {
+        brand.value = value
     }
 
     fun addSpecRow() {
@@ -232,4 +244,26 @@ class ListingViewModel : ViewModel() {
             }
         }
     }
+}
+
+// Pure, free of any Firebase/ViewModel dependency — same reasoning as
+// calculatePayout()/nextOrderStatus() in OrderViewModel.kt and
+// filterAndSortListings() in SearchViewModel.kt. Subcategory is preferred
+// over category as the descriptor since it's more specific, but falls back
+// to category whenever subcategory isn't picked yet or is the catch-all
+// "Other" — neither is descriptive on its own. Brand, when present, leads
+// the way real listing titles are usually written ("Sirona Handpiece") —
+// but brand alone, with no category picked yet, isn't a real device title,
+// so no suggestion is produced at all until there's a descriptor to pair it
+// with.
+fun buildSuggestedName(category: String, subcategory: String, brand: String): String {
+    val descriptor = when {
+        subcategory.isNotBlank() && subcategory != "Other" -> subcategory
+        category.isNotBlank() -> category
+        else -> ""
+    }
+    if (descriptor.isBlank()) return ""
+    return listOf(brand.trim(), descriptor)
+        .filter { it.isNotBlank() }
+        .joinToString(" ")
 }

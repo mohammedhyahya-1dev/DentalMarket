@@ -26,7 +26,6 @@ import com.dentalmarket.app.model.Rating
 import com.dentalmarket.app.ui.components.OrderStatusTracker
 import com.dentalmarket.app.ui.components.PaymentReferenceDialog
 import com.dentalmarket.app.ui.components.PaymentStatusBadge
-import com.dentalmarket.app.ui.theme.WarmAmber
 import com.dentalmarket.app.viewmodel.OrderViewModel
 import com.dentalmarket.app.viewmodel.RatingViewModel
 
@@ -271,7 +270,7 @@ private fun RateSellerDialog(
                             Icon(
                                 if (i <= stars) Icons.Filled.Star else Icons.Filled.StarBorder,
                                 contentDescription = "$i star",
-                                tint = WarmAmber
+                                tint = MaterialTheme.colorScheme.primary
                             )
                         }
                     }

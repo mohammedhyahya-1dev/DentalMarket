@@ -21,19 +21,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.dentalmarket.app.data.AuthRepository
 import com.dentalmarket.app.model.Condition
 import com.dentalmarket.app.model.DeliveryMethod
 import com.dentalmarket.app.model.DeviceCategory
 import com.dentalmarket.app.ui.components.CategoriesRow
-import com.dentalmarket.app.ui.components.GuestSignInPrompt
 import com.dentalmarket.app.ui.components.ProductCard
-import com.dentalmarket.app.viewmodel.CartViewModel
 import com.dentalmarket.app.viewmodel.MarketplaceViewModel
-import com.dentalmarket.app.viewmodel.RatingViewModel
 import com.dentalmarket.app.viewmodel.SearchViewModel
 import com.dentalmarket.app.viewmodel.SortOption
-import com.dentalmarket.app.viewmodel.WatchlistViewModel
 import com.dentalmarket.app.viewmodel.filterAndSortListings
 
 // A separate, additive destination from MarketplaceScreen's own lightweight
@@ -49,24 +44,17 @@ fun SearchResultsScreen(
     initialQuery: String,
     initialCategory: String = "",
     initialSubcategory: String = "",
-    cartViewModel: CartViewModel,
     onProductClick: (String) -> Unit,
     onBack: () -> Unit,
     onCategoriesClick: () -> Unit,
-    onRequireLogin: () -> Unit,
     marketplaceViewModel: MarketplaceViewModel = viewModel(),
-    watchlistViewModel: WatchlistViewModel = viewModel(),
-    ratingViewModel: RatingViewModel = viewModel(),
     searchViewModel: SearchViewModel = viewModel()
 ) {
-    val watchedIds by watchlistViewModel.watchedIds.collectAsState()
-    val sellerSummaries by ratingViewModel.sellerSummaries.collectAsState()
     val listings = marketplaceViewModel.listings.value
     val isLoading = marketplaceViewModel.isLoading.value
 
     LaunchedEffect(Unit) {
         marketplaceViewModel.loadListings()
-        watchlistViewModel.loadWatchlistOnce()
         if (searchViewModel.query.value.isBlank() && initialQuery.isNotBlank()) {
             searchViewModel.query.value = initialQuery
         }
@@ -76,20 +64,6 @@ fun SearchResultsScreen(
         if (searchViewModel.selectedSubcategories.value.isEmpty() && initialSubcategory.isNotBlank()) {
             searchViewModel.selectedSubcategories.value = setOf(initialSubcategory)
         }
-    }
-
-    LaunchedEffect(listings) {
-        if (listings.isNotEmpty()) {
-            ratingViewModel.loadSellerSummaries(listings.map { it.sellerId })
-        }
-    }
-
-    val authRepository = remember { AuthRepository() }
-    val isGuest = authRepository.isAnonymous
-    var showGuestPrompt by remember { mutableStateOf(false) }
-
-    fun requireLogin(action: () -> Unit) {
-        if (isGuest) showGuestPrompt = true else action()
     }
 
     var showFilters by remember { mutableStateOf(false) }
@@ -267,26 +241,12 @@ fun SearchResultsScreen(
                     items(results, key = { it.id }) { listing ->
                         ProductCard(
                             listing = listing,
-                            onClick = { onProductClick(listing.id) },
-                            onAddToCart = { requireLogin { cartViewModel.addToCart(listing) } },
-                            isWatched = watchedIds.contains(listing.id),
-                            onToggleWatch = { requireLogin { watchlistViewModel.toggleWatch(listing.id) } },
-                            sellerRating = sellerSummaries[listing.sellerId]
+                            onClick = { onProductClick(listing.id) }
                         )
                     }
                 }
             }
         }
-    }
-
-    if (showGuestPrompt) {
-        GuestSignInPrompt(
-            onDismiss = { showGuestPrompt = false },
-            onSignIn = {
-                showGuestPrompt = false
-                onRequireLogin()
-            }
-        )
     }
 
     if (showFilters) {

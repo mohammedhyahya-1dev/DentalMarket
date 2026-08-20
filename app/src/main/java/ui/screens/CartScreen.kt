@@ -42,7 +42,6 @@ import com.dentalmarket.app.ui.components.CartItemRow
 import com.dentalmarket.app.ui.components.GuestSignInPrompt
 import com.dentalmarket.app.ui.components.PaymentReferenceDialog
 import com.dentalmarket.app.ui.components.VerifyEmailPrompt
-import com.dentalmarket.app.ui.theme.WarmAmber
 import com.dentalmarket.app.viewmodel.CartViewModel
 import com.dentalmarket.app.viewmodel.OrderViewModel
 
@@ -141,7 +140,7 @@ fun CartScreen(
                         Text(
                             "Total: $" + "%.2f".format(itemTotal + safetyFeeTotal + shippingTotal),
                             style = MaterialTheme.typography.titleLarge,
-                            color = WarmAmber
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                     Spacer(modifier = Modifier.height(8.dp))

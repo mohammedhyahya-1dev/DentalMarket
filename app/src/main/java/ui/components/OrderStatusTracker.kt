@@ -22,7 +22,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.dentalmarket.app.ui.theme.DeepTeal
 
 // The order fulfillment pipeline, in order. CANCELLED is a separate terminal
 // state handled outside this list rather than a step in it.
@@ -62,6 +61,7 @@ fun OrderStatusTracker(
     val currentIndex = ORDER_TRACKER_STEPS.indexOfFirst { it.first == status }.coerceAtLeast(0)
     val dotSize = if (compact) 16.dp else 28.dp
     val lineHeight = if (compact) 2.dp else 3.dp
+    val activeColor = MaterialTheme.colorScheme.primary
     val inactiveColor = MaterialTheme.colorScheme.outlineVariant
 
     Column(modifier = modifier.fillMaxWidth()) {
@@ -72,7 +72,7 @@ fun OrderStatusTracker(
                         modifier = Modifier
                             .weight(1f)
                             .height(lineHeight)
-                            .background(if (index <= currentIndex) DeepTeal else inactiveColor)
+                            .background(if (index <= currentIndex) activeColor else inactiveColor)
                     )
                 }
                 val isCompleted = index < currentIndex
@@ -80,7 +80,7 @@ fun OrderStatusTracker(
                 Box(
                     modifier = Modifier
                         .size(dotSize)
-                        .background(if (isCompleted || isCurrent) DeepTeal else inactiveColor, CircleShape),
+                        .background(if (isCompleted || isCurrent) activeColor else inactiveColor, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     if (isCompleted) {

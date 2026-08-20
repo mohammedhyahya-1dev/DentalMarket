@@ -34,8 +34,6 @@ import com.dentalmarket.app.ui.components.shouldShowNotificationPrompt
 import com.dentalmarket.app.viewmodel.CartViewModel
 import com.dentalmarket.app.viewmodel.MarketplaceViewModel
 import com.dentalmarket.app.viewmodel.NotificationViewModel
-import com.dentalmarket.app.viewmodel.RatingViewModel
-import com.dentalmarket.app.viewmodel.WatchlistViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,13 +52,9 @@ fun MarketplaceScreen(
     onSearchSubmit: (String) -> Unit,
     onRequireLogin: () -> Unit,
     marketplaceViewModel: MarketplaceViewModel = viewModel(),
-    watchlistViewModel: WatchlistViewModel = viewModel(),
-    ratingViewModel: RatingViewModel = viewModel(),
     notificationViewModel: NotificationViewModel = viewModel()
 ) {
     val cartItems by cartViewModel.cartItems.collectAsState()
-    val watchedIds by watchlistViewModel.watchedIds.collectAsState()
-    val sellerSummaries by ratingViewModel.sellerSummaries.collectAsState()
     val unreadNotifications = notificationViewModel.unreadCount
 
     val context = LocalContext.current
@@ -79,7 +73,6 @@ fun MarketplaceScreen(
     }
     LaunchedEffect(Unit) {
         marketplaceViewModel.loadListings()
-        watchlistViewModel.loadWatchlistOnce()
         notificationViewModel.loadNotifications()
         if (shouldShowNotificationPrompt(context)) {
             showNotificationPrompt = true
@@ -89,11 +82,6 @@ fun MarketplaceScreen(
     val listings = marketplaceViewModel.listings.value
     val isLoading = marketplaceViewModel.isLoading.value
 
-    LaunchedEffect(listings) {
-        if (listings.isNotEmpty()) {
-            ratingViewModel.loadSellerSummaries(listings.map { it.sellerId })
-        }
-    }
     val authRepository = remember { AuthRepository() }
     val isAdmin = authRepository.isAdmin
     val isGuest = authRepository.isAnonymous
@@ -199,11 +187,7 @@ fun MarketplaceScreen(
                         items(listings, key = { it.id }) { listing ->
                             ProductCard(
                                 listing = listing,
-                                onClick = { onProductClick(listing.id) },
-                                onAddToCart = { requireLogin { cartViewModel.addToCart(listing) } },
-                                isWatched = watchedIds.contains(listing.id),
-                                onToggleWatch = { requireLogin { watchlistViewModel.toggleWatch(listing.id) } },
-                                sellerRating = sellerSummaries[listing.sellerId]
+                                onClick = { onProductClick(listing.id) }
                             )
                         }
                     }

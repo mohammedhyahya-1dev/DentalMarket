@@ -12,6 +12,7 @@ import com.dentalmarket.app.model.Condition
 import com.dentalmarket.app.model.DeviceCategory
 import com.dentalmarket.app.ui.components.VerifyEmailPrompt
 import com.dentalmarket.app.viewmodel.ListingViewModel
+import com.dentalmarket.app.viewmodel.buildSuggestedName
 import com.dentalmarket.app.viewmodel.calculatePayout
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -62,10 +63,24 @@ fun SellScreen(
 
         OutlinedTextField(
             value = viewModel.name.value,
-            onValueChange = { viewModel.name.value = it },
+            onValueChange = { viewModel.updateName(it) },
             label = { Text("Device name") },
             modifier = Modifier.fillMaxWidth()
         )
+
+        Text(
+            "Tip: Include brand, device type, and condition to help buyers find your listing.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.outline
+        )
+
+        val suggestedName = buildSuggestedName(viewModel.category.value, viewModel.subcategory.value, viewModel.brand.value)
+        if (suggestedName.isNotBlank() && suggestedName != viewModel.name.value) {
+            AssistChip(
+                onClick = { viewModel.updateName(suggestedName) },
+                label = { Text("Suggested: $suggestedName — tap to use") }
+            )
+        }
 
         ExposedDropdownMenuBox(
             expanded = categoryExpanded,
@@ -115,7 +130,7 @@ fun SellScreen(
                         DropdownMenuItem(
                             text = { Text(sub) },
                             onClick = {
-                                viewModel.subcategory.value = sub
+                                viewModel.setSubcategory(sub)
                                 subcategoryExpanded = false
                             }
                         )
@@ -160,7 +175,7 @@ fun SellScreen(
 
         OutlinedTextField(
             value = viewModel.brand.value,
-            onValueChange = { viewModel.brand.value = it },
+            onValueChange = { viewModel.updateBrand(it) },
             label = { Text("Brand (optional)") },
             modifier = Modifier.fillMaxWidth()
         )

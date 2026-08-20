@@ -91,6 +91,15 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
         }
     }
 
+    // Single definition of "show me this category", shared by CategoriesScreen's
+    // leaf taps and ProductDetailScreen's category links so both land on the
+    // exact same pre-filtered SearchResultsScreen.
+    fun navigateToCategory(categoryLabel: String, subcategory: String?) {
+        val subcategoryArg = subcategory?.takeIf { it.isNotBlank() }
+            ?.let { "&subcategory=${Uri.encode(it)}" } ?: ""
+        navController.navigate("searchResults?category=${Uri.encode(categoryLabel)}$subcategoryArg")
+    }
+
     NavHost(navController = navController, startDestination = startDestination) {
         composable("authGate") {
             LaunchedEffect(Unit) {
@@ -221,18 +230,15 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
                 initialQuery = initialQuery,
                 initialCategory = initialCategory,
                 initialSubcategory = initialSubcategory,
-                cartViewModel = cartViewModel,
                 onProductClick = { id -> navController.navigate("product/$id") },
                 onBack = { navController.popBackStack() },
-                onCategoriesClick = { navController.navigate("categories") },
-                onRequireLogin = { navController.navigate("login") }
+                onCategoriesClick = { navController.navigate("categories") }
             )
         }
         composable("categories") {
             CategoriesScreen(
                 onLeafSelected = { category, subcategory ->
-                    val subcategoryArg = subcategory?.let { "&subcategory=${Uri.encode(it)}" } ?: ""
-                    navController.navigate("searchResults?category=${Uri.encode(category.label)}$subcategoryArg")
+                    navigateToCategory(category.label, subcategory)
                 },
                 onHomeClick = {
                     navController.navigate("marketplace") {
@@ -275,7 +281,6 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
                 LaunchedEffect(Unit) { navController.popBackStack() }
             } else {
                 WatchlistScreen(
-                    cartViewModel = cartViewModel,
                     onProductClick = { id -> navController.navigate("product/$id") },
                     onBack = { navController.popBackStack() }
                 )
@@ -316,7 +321,11 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
                 buyerId = authViewModel.currentUserId ?: "",
                 buyerName = "",
                 onBack = { navController.popBackStack() },
-                onRequireLogin = { navController.navigate("login") }
+                onRequireLogin = { navController.navigate("login") },
+                onCategoryClick = { category, subcategory ->
+                    navigateToCategory(category, subcategory)
+                },
+                onSellClick = { navController.navigate("sell") }
             )
         }
         composable("cart") {
