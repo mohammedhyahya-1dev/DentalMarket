@@ -1,13 +1,7 @@
 package com.dentalmarket.app.ui.screens
 
-import android.content.ActivityNotFoundException
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
 import android.content.Intent
-import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,7 +21,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
@@ -38,7 +31,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -84,6 +76,7 @@ fun SellerProfileScreen(
     ratingViewModel: RatingViewModel = viewModel(),
     followViewModel: FollowViewModel = viewModel()
 ) {
+    val context = LocalContext.current
     val listingRepository = remember { ListingRepository() }
     val authRepository = remember { AuthRepository() }
     val isGuest = authRepository.isAnonymous
@@ -164,7 +157,6 @@ fun SellerProfileScreen(
 
     var showFilters by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
-    var showShareSheet by remember { mutableStateOf(false) }
 
     val sellerSummaries by ratingViewModel.sellerSummaries.collectAsState()
     val isFollowing by followViewModel.isFollowing.collectAsState()
@@ -186,8 +178,17 @@ fun SellerProfileScreen(
                 actions = {
                     // Shown on every profile, including your own (share your
                     // own shop) — unlike Follow, there's no reason to hide
-                    // this on isOwnProfile.
-                    IconButton(onClick = { showShareSheet = true }) {
+                    // this on isOwnProfile. Straight to the system
+                    // Sharesheet on tap — no intermediate screen.
+                    IconButton(onClick = {
+                        val shareText = "Check out ${displayName.ifBlank { "this seller" }}'s shop on DentalMarket: " +
+                            sellerShareLink(sellerId)
+                        val intent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, shareText)
+                        }
+                        context.startActivity(Intent.createChooser(intent, "Share this shop"))
+                    }) {
                         Icon(Icons.Filled.Share, contentDescription = "Share this seller")
                     }
                 }
@@ -325,14 +326,6 @@ fun SellerProfileScreen(
         )
     }
 
-    if (showShareSheet) {
-        ShareSellerSheet(
-            sellerId = sellerId,
-            sellerName = displayName,
-            onDismiss = { showShareSheet = false }
-        )
-    }
-
     if (showGuestPrompt) {
         GuestSignInPrompt(
             onDismiss = { showGuestPrompt = false },
@@ -352,25 +345,6 @@ private fun StatColumn(value: String, label: String) {
     }
 }
 
-// One entry per target app: display label, its package for
-// Intent.setPackage (direct-to-app, no official SDK/App ID), and the emoji
-// used in place of a bundled brand icon (none of these ship in this app's
-// resources, and pulling official ones in would mean brand-asset licensing
-// this app doesn't have).
-private data class ShareTarget(val label: String, val packageName: String, val emoji: String)
-
-private val shareTargets = listOf(
-    ShareTarget("WhatsApp", "com.whatsapp", "💬"),
-    ShareTarget("Telegram", "org.telegram.messenger", "✈️"),
-    // Instagram's app reliably accepts ACTION_SEND for image/video; plain
-    // text sharing to Direct is inconsistent across its versions (may open
-    // without the pre-filled text, or route to a generic share tray) — real
-    // constraint of going through the plain Android share intent rather
-    // than Instagram's own SDK, not a bug in this code.
-    ShareTarget("Instagram", "com.instagram.android", "📷"),
-    ShareTarget("Messenger", "com.facebook.orca", "📨")
-)
-
 // https://dentalmarket-abdf6.firebaseapp.com/seller/{uid} — same verified
 // host as the existing password-reset App Link (see AndroidManifest.xml),
 // new pathPrefix. Opens straight into this seller's SellerProfileScreen via
@@ -380,73 +354,3 @@ private val shareTargets = listOf(
 // and can never break if the seller renames their handle later.
 private fun sellerShareLink(sellerId: String): String =
     "https://dentalmarket-abdf6.firebaseapp.com/seller/$sellerId"
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ShareSellerSheet(sellerId: String, sellerName: String, onDismiss: () -> Unit) {
-    val context = LocalContext.current
-    var notInstalledMessage by remember { mutableStateOf<String?>(null) }
-    val shareText = "Check out ${sellerName.ifBlank { "this seller" }}'s shop on DentalMarket: " +
-        sellerShareLink(sellerId)
-
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 20.dp)) {
-            Text("Share this shop", style = MaterialTheme.typography.titleLarge)
-            Spacer(modifier = Modifier.height(16.dp))
-            // Own row above the app targets, same layout as Mercari's share
-            // sheet. A bare URL, not shareText's "Check out X's shop..."
-            // framing — whoever pastes this is testing/reusing the link
-            // itself (Notes, Chrome, Messages), not sending a message, so a
-            // clean link is more useful and looks better wherever it lands.
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        clipboard.setPrimaryClip(ClipData.newPlainText("Seller link", sellerShareLink(sellerId)))
-                        Toast.makeText(context, "Link copied", Toast.LENGTH_SHORT).show()
-                        onDismiss()
-                    }
-                    .padding(vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Filled.ContentCopy,
-                    contentDescription = null,
-                    modifier = Modifier.size(28.dp)
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                Text("Copy Link", style = MaterialTheme.typography.bodyLarge)
-            }
-            shareTargets.forEach { target ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            try {
-                                val intent = Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_TEXT, shareText)
-                                    setPackage(target.packageName)
-                                }
-                                context.startActivity(intent)
-                                onDismiss()
-                            } catch (e: ActivityNotFoundException) {
-                                notInstalledMessage = "${target.label} isn't installed"
-                            }
-                        }
-                        .padding(vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(target.emoji, style = MaterialTheme.typography.headlineSmall)
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Text(target.label, style = MaterialTheme.typography.bodyLarge)
-                }
-            }
-            notInstalledMessage?.let {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-            }
-        }
-    }
-}
