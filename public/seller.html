@@ -68,9 +68,17 @@
        this app is actually published under its own account. -->
   <p>The DentalMarket app isn't available in app stores yet — ask the person who shared this link to help you install it directly.</p>
   <script>
+    // S.browser_fallback_url matters here for the same reason the removed
+    // link above did: without an explicit fallback, Chrome's own intent://
+    // handling falls back to https://play.google.com/store/apps/details
+    // ?id={package} whenever the app can't be resolved — synthesized from
+    // the package= value right below, not anything visible in this file.
+    // Pointing it at this same page keeps a failed resolution landing on
+    // the "isn't available in app stores yet" message above instead.
     document.getElementById('open-app').href =
       'intent:' + window.location.pathname +
-      '#Intent;scheme=https;package=com.dentalmarket.app;end';
+      '#Intent;scheme=https;package=com.dentalmarket.app;S.browser_fallback_url=' +
+      encodeURIComponent(window.location.href) + ';end';
   </script>
 </body>
 </html>
