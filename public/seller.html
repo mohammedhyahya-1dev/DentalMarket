@@ -41,13 +41,6 @@
     border-radius: 8px;
     margin-bottom: 12px;
   }
-  a.secondary {
-    display: block;
-    color: #6366F1;
-    text-decoration: none;
-    font-size: 14px;
-    padding: 8px;
-  }
 </style>
 </head>
 <body>
@@ -59,7 +52,7 @@
        page came out of), the OS may hand a visitor here even with the app
        installed — this gives them a second, manual way to open it instead
        of being stuck on a static page with no path forward. intent:// is
-       Android-only; other platforms just see the two links below it.
+       Android-only; other platforms just see this as an inert button.
        href is set from the actual visited path (/seller/{uid}) below,
        since this one static file serves every seller via firebase.json's
        wildcard rewrite — a hardcoded path would send everyone to the same
@@ -67,9 +60,13 @@
   <a class="button" id="open-app" href="#">
     Open in DentalMarket
   </a>
-  <a class="secondary" href="https://play.google.com/store/apps/details?id=com.dentalmarket.app">
-    Don't have the app? Get it on Google Play
-  </a>
+  <!-- Not a link: com.dentalmarket.app was never published under this
+       project's own account, so that package id currently belongs to an
+       unrelated third-party app on the real Play Store. Linking it would
+       have sent anyone without the app to install someone else's software
+       believing it was DentalMarket. Replace with a real store link once
+       this app is actually published under its own account. -->
+  <p>The DentalMarket app isn't available in app stores yet — ask the person who shared this link to help you install it directly.</p>
   <script>
     document.getElementById('open-app').href =
       'intent:' + window.location.pathname +
