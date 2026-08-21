@@ -1,7 +1,11 @@
 package com.dentalmarket.app.ui.screens
 
 import android.content.ActivityNotFoundException
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +27,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
@@ -388,6 +393,31 @@ private fun ShareSellerSheet(sellerId: String, sellerName: String, onDismiss: ()
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 20.dp)) {
             Text("Share this shop", style = MaterialTheme.typography.titleLarge)
             Spacer(modifier = Modifier.height(16.dp))
+            // Own row above the app targets, same layout as Mercari's share
+            // sheet. A bare URL, not shareText's "Check out X's shop..."
+            // framing — whoever pastes this is testing/reusing the link
+            // itself (Notes, Chrome, Messages), not sending a message, so a
+            // clean link is more useful and looks better wherever it lands.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText("Seller link", sellerShareLink(sellerId)))
+                        Toast.makeText(context, "Link copied", Toast.LENGTH_SHORT).show()
+                        onDismiss()
+                    }
+                    .padding(vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Filled.ContentCopy,
+                    contentDescription = null,
+                    modifier = Modifier.size(28.dp)
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Text("Copy Link", style = MaterialTheme.typography.bodyLarge)
+            }
             shareTargets.forEach { target ->
                 Row(
                     modifier = Modifier
