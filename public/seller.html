@@ -76,7 +76,7 @@
     // Pointing it at this same page keeps a failed resolution landing on
     // the "isn't available in app stores yet" message above instead.
     document.getElementById('open-app').href =
-      'intent:' + window.location.pathname +
+      'intent://' + window.location.host + window.location.pathname +
       '#Intent;scheme=https;package=com.dentalmarket.app;S.browser_fallback_url=' +
       encodeURIComponent(window.location.href) + ';end';
   </script>
