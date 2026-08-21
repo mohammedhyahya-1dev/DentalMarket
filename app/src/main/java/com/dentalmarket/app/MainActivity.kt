@@ -58,7 +58,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             DentalMarketTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    DentalMarketApp(deepLinkUri = pendingDeepLinkUri)
+                    DentalMarketApp(
+                        deepLinkUri = pendingDeepLinkUri,
+                        onDeepLinkConsumed = { pendingDeepLinkUri = null }
+                    )
                 }
             }
         }
@@ -72,7 +75,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun DentalMarketApp(deepLinkUri: Uri? = null) {
+fun DentalMarketApp(deepLinkUri: Uri? = null, onDeepLinkConsumed: () -> Unit = {}) {
     val navController = rememberNavController()
     val cartViewModel: CartViewModel = viewModel()
     val inquiryViewModel: InquiryViewModel = viewModel()
@@ -85,11 +88,46 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
     // GuestSignInPrompt's onRequireLogin wiring across every gated screen.
     val startDestination = "authGate"
 
+    fun resetPasswordRouteFor(uri: Uri): String? {
+        // Password-reset links carry oobCode as a query param regardless of
+        // path (Firebase's own /__/auth/action link shape) — unrelated to
+        // the seller route below, which is path-based instead, since a
+        // seller-profile link has no query params of its own to key off.
+        val code = uri.getQueryParameter("oobCode")
+        return if (!code.isNullOrBlank()) "resetPassword/$code" else null
+    }
+
+    fun sellerRouteFor(uri: Uri): String? {
+        // Seller-profile share links: https://.../seller/{uid}, same host as
+        // the reset-password intent-filter (see AndroidManifest.xml), routed
+        // here by MainActivity.onCreate/onNewIntent the same way. sellerName
+        // is left blank — this is the one path into SellerProfileScreen that
+        // doesn't already have it on hand (unlike ProductDetailScreen's
+        // "Sold by" link, which passes it from the listing); the screen's
+        // own getPublicUsername-style live read isn't a name lookup today,
+        // so the TopAppBar title is blank until the seller's own
+        // listings/rating data loads in — a known, minor rough edge.
+        val segments = uri.pathSegments.orEmpty()
+        val sellerIndex = segments.indexOf("seller")
+        val sellerId = segments.getOrNull(sellerIndex + 1)
+        return if (sellerIndex >= 0 && !sellerId.isNullOrBlank()) "seller/$sellerId" else null
+    }
+
+    // Handles a deep link that arrives once the app is already past authGate
+    // (a live app on marketplace/product/etc. receiving a new intent via
+    // onNewIntent). The cold-start deep link is instead resolved by authGate
+    // itself below — if we acted on it here too, this effect's plain
+    // navigate() and authGate's navigate(...){ popUpTo("authGate", inclusive
+    // = true) } would race, with authGate's popUpTo capable of popping
+    // whatever this effect just pushed. Skipping while authGate is still the
+    // current destination avoids that; the rare case of a second deep link
+    // arriving in the sub-second window while authGate is still resolving
+    // the first one is a known, minor edge we don't handle.
     LaunchedEffect(deepLinkUri) {
-        val code = deepLinkUri?.getQueryParameter("oobCode")
-        if (!code.isNullOrBlank()) {
-            navController.navigate("resetPassword/$code")
-        }
+        if (deepLinkUri == null || navController.currentDestination?.route == "authGate") return@LaunchedEffect
+        val target = resetPasswordRouteFor(deepLinkUri) ?: sellerRouteFor(deepLinkUri) ?: return@LaunchedEffect
+        onDeepLinkConsumed()
+        navController.navigate(target)
     }
 
     // Single definition of "show me this category", shared by CategoriesScreen's
@@ -104,11 +142,36 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
     NavHost(navController = navController, startDestination = startDestination) {
         composable("authGate") {
             LaunchedEffect(Unit) {
+                // authGate is the sole owner of the cold-start deep link: it
+                // reads deepLinkUri exactly once here and immediately marks it
+                // consumed, so a later re-entry into authGate (sign-out,
+                // login-switch, both of which popUpTo(0) back here) never
+                // replays a stale link. Resolving the target now — before
+                // touching auth at all — also means the eventual
+                // navigate(...) { popUpTo("authGate", inclusive = true) }
+                // below is the ONLY call that can leave authGate, so it can
+                // no longer race the deep link out from under itself.
+                val resetPasswordRoute = deepLinkUri?.let(::resetPasswordRouteFor)
+                val sellerRoute = deepLinkUri?.let(::sellerRouteFor)
+                onDeepLinkConsumed()
+
+                // Password reset doesn't need a resolved session, so it
+                // short-circuits ahead of the guest sign-in/profile-complete
+                // checks below rather than waiting on a network round trip it
+                // doesn't need.
+                if (resetPasswordRoute != null) {
+                    navController.navigate(resetPasswordRoute) {
+                        popUpTo("authGate") { inclusive = true }
+                    }
+                    return@LaunchedEffect
+                }
+
                 fun proceedAsGuest() {
                     // Guests have no profile doc to check — skip straight to
-                    // marketplace. MarketplaceScreen itself now decides
-                    // whether to show the notification-permission dialog.
-                    navController.navigate("marketplace") {
+                    // the seller deep link if there is one, else marketplace.
+                    // MarketplaceScreen itself now decides whether to show
+                    // the notification-permission dialog.
+                    navController.navigate(sellerRoute ?: "marketplace") {
                         popUpTo("authGate") { inclusive = true }
                     }
                 }
@@ -136,7 +199,11 @@ fun DentalMarketApp(deepLinkUri: Uri? = null) {
                         // without delaying the navigation below.
                         authViewModel.ensureUsername()
                         authViewModel.checkProfileComplete { complete ->
-                            val destination = if (!complete) "completeProfile" else "marketplace"
+                            // An incomplete profile forces onboarding first —
+                            // the seller deep link is dropped in that case
+                            // rather than resumed after completeProfile, same
+                            // as it was already dropped in the old, racy code.
+                            val destination = if (!complete) "completeProfile" else (sellerRoute ?: "marketplace")
                             navController.navigate(destination) {
                                 popUpTo("authGate") { inclusive = true }
                             }

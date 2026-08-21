@@ -13,6 +13,7 @@
 // root's firestore-tests directory.
 
 import { test, before, after, beforeEach } from 'node:test';
+import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   initializeTestEnvironment,
@@ -239,5 +240,59 @@ test('16. legitimate two-step claim-then-write still succeeds for both users and
   );
   await assertSucceeds(
     alice.collection('publicProfiles').doc('alice').set({ username: 'legituser' })
+  );
+});
+
+// Proves publicProfiles/{uid}'s rule needs no change for
+// writeUsernameToProfile to also write `name` alongside `username` (see
+// AuthRepository.kt) — the rule only checks ownership and validates the
+// username field specifically, with no affectedKeys()/field-restriction
+// clause, so an extra field on the same write was never going to be
+// rejected. This is the direct proof rather than just inspection.
+test('17. publicProfiles create/update with an extra name field, alongside a validly-owned username, still succeeds', async () => {
+  const alice = testEnv.authenticatedContext('alice').firestore();
+
+  await assertSucceeds(
+    alice.collection('usernames').doc('nametest').set({ uid: 'alice' })
+  );
+  await assertSucceeds(
+    alice.collection('publicProfiles').doc('alice').set({ username: 'nametest', name: 'Alice Example' })
+  );
+});
+
+// completeProfile()'s new publicProfiles.name sync (AuthRepository.kt) is a
+// merge into a doc that ensureUsername() USUALLY already created with a
+// real, owned username by the time a user submits the profile form — this
+// is that normal case, proving the merge succeeds and leaves username
+// untouched.
+test('18. completeProfile-style name-only merge succeeds when publicProfiles already has an owned username', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await ctx.firestore().collection('usernames').doc('racewinner').set({ uid: 'alice' });
+    await ctx.firestore().collection('publicProfiles').doc('alice').set({ username: 'racewinner' });
+  });
+
+  const alice = testEnv.authenticatedContext('alice').firestore();
+  await assertSucceeds(
+    alice.collection('publicProfiles').doc('alice').set({ name: 'Alice Example' }, { merge: true })
+  );
+
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const doc = await ctx.firestore().collection('publicProfiles').doc('alice').get();
+    assert.equal(doc.data().username, 'racewinner');
+    assert.equal(doc.data().name, 'Alice Example');
+  });
+});
+
+// The race this justifies AuthRepository.completeProfile()'s best-effort
+// (try/catch-and-ignore) handling for: ensureUsername() hasn't won yet, so
+// publicProfiles/{uid} doesn't exist at all — a name-only merge becomes a
+// create with no username field in the resulting data, which
+// isValidUsername(request.resource.data.username) can't evaluate, so it's
+// denied. Confirms the failure this code path has to tolerate is real, not
+// a hypothetical worth over-engineering for.
+test("19. completeProfile-style name-only merge is denied when publicProfiles doesn't exist yet (the race case)", async () => {
+  const alice = testEnv.authenticatedContext('alice').firestore();
+  await assertFails(
+    alice.collection('publicProfiles').doc('alice').set({ name: 'Alice Example' }, { merge: true })
   );
 });

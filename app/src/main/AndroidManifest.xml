@@ -15,6 +15,7 @@
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
+            android:launchMode="singleTop"
             android:theme="@style/Theme.DentalMarket"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
@@ -32,6 +33,24 @@
                     android:scheme="https"
                     android:host="dentalmarket-abdf6.firebaseapp.com"
                     android:pathPrefix="/__/auth/action" />
+            </intent-filter>
+            <!-- Seller-profile share links (SellerProfileScreen's Share sheet).
+                 Same host as the password-reset filter above, so it rides on
+                 whatever Digital Asset Links verification already covers that
+                 domain — no second domain to verify. If the app isn't
+                 installed, this falls through to the browser, which Firebase
+                 Hosting serves public/seller.html for (see firebase.json's
+                 rewrite). -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:scheme="https"
+                    android:host="dentalmarket-abdf6.firebaseapp.com"
+                    android:pathPrefix="/seller" />
             </intent-filter>
         </activity>
     </application>

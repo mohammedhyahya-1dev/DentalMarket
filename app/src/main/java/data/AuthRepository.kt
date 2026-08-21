@@ -284,6 +284,29 @@ class AuthRepository {
             firestore.collection("users").document(uid)
                 .set(updates, SetOptions.merge())
                 .awaitResult()
+
+            // Best-effort, not part of the Result this function returns:
+            // ensureUsername() (started fire-and-forget from authGate,
+            // before this screen is even reached) usually wins the race and
+            // already has publicProfiles/{uid} holding a real, owned
+            // username by the time a user submits this form — but that's
+            // not guaranteed, and if it hasn't, this doc doesn't exist yet
+            // and publicProfiles' rule (which requires a validly-owned
+            // username on the resulting write) denies a name-only merge
+            // into it. That's a real, confirmed case (see
+            // firestore-tests/usernames.rules.test.mjs), not a hypothetical
+            // — letting it fail the whole completeProfile() call would
+            // block onboarding over a cosmetic sync. publicProfiles.name
+            // just stays blank until the username is next set/changed
+            // instead, same fallback SellerProfileScreen already has.
+            try {
+                firestore.collection("publicProfiles").document(uid)
+                    .set(mapOf("name" to displayName), SetOptions.merge())
+                    .awaitResult()
+            } catch (e: Exception) {
+                // Ignored — see comment above.
+            }
+
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -372,12 +395,20 @@ class AuthRepository {
 
         suspend fun attempt(): Result<Unit> = try {
             firestore.runTransaction { txn ->
-                val currentUsername = txn.get(userRef).getString("username")
+                // Same read this transaction already needed for
+                // currentUsername — name rides along for free, no extra
+                // read. publicProfiles/{uid}.name exists so SellerProfileScreen
+                // can show a real name for a seller opened via a shared deep
+                // link, which arrives with no sellerName nav argument (see
+                // that screen's own fallback).
+                val userDoc = txn.get(userRef)
+                val currentUsername = userDoc.getString("username")
+                val name = userDoc.getString("name") ?: ""
                 if (!currentUsername.isNullOrBlank() && normalizeUsername(currentUsername) != normalizedNew) {
                     txn.delete(firestore.collection("usernames").document(normalizeUsername(currentUsername)))
                 }
                 txn.set(userRef, mapOf("username" to username), SetOptions.merge())
-                txn.set(publicProfileRef, mapOf("username" to username))
+                txn.set(publicProfileRef, mapOf("username" to username, "name" to name))
                 null
             }.awaitResult()
             Result.success(Unit)
@@ -458,6 +489,20 @@ class AuthRepository {
         return try {
             val doc = firestore.collection("publicProfiles").document(uid).get().awaitResult()
             Result.success(doc.getString("username"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // Only needed as a fallback when a seller's screen is reached with no
+    // sellerName already in hand (a deep-link open, see SellerProfileScreen)
+    // — the in-app "Sold by X" tap already carries the name, so this is a
+    // separate call from getPublicUsername above rather than a combined
+    // fetch, kept simple since it only ever fires on that one path.
+    suspend fun getPublicName(uid: String): Result<String?> {
+        return try {
+            val doc = firestore.collection("publicProfiles").document(uid).get().awaitResult()
+            Result.success(doc.getString("name"))
         } catch (e: Exception) {
             Result.failure(e)
         }
