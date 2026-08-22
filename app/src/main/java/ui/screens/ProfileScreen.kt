@@ -7,7 +7,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,12 +33,15 @@ fun ProfileScreen(
     onMyQuestionsClick: () -> Unit,
     onAdminInquiriesClick: () -> Unit,
     onWatchlistClick: () -> Unit,
+    onVerifyIdentityClick: () -> Unit,
+    onAdminIdentityVerificationsClick: () -> Unit,
     viewModel: ProfileViewModel = viewModel()
 ) {
     val profile = viewModel.profile.value
     val isLoading = viewModel.isLoading.value
     val isEmailVerified = viewModel.isEmailVerified.value
     val resendSuccess = viewModel.resendSuccess.value
+    val verificationStatus = viewModel.verificationStatus.value
     var showUsernameDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -193,6 +198,9 @@ fun ProfileScreen(
                         Text("My Questions")
                     }
 
+                    Spacer(modifier = Modifier.height(10.dp))
+                    VerificationRow(status = verificationStatus, onClick = onVerifyIdentityClick)
+
                     if (viewModel.isAdmin) {
                         Spacer(modifier = Modifier.height(10.dp))
                         OutlinedButton(
@@ -202,6 +210,16 @@ fun ProfileScreen(
                             Icon(Icons.Filled.Info, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Buyer Questions (Admin)")
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+                        OutlinedButton(
+                            onClick = onAdminIdentityVerificationsClick,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Filled.Info, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Identity Verifications (Admin)")
                         }
                     }
 
@@ -288,6 +306,32 @@ private fun UsernameEditDialog(
             }
         }
     )
+}
+
+// status is identityVerifications/{uid}.status, or null if no submission
+// exists yet — APPROVED shows a static indicator (nothing left to do),
+// PENDING shows a non-clickable "awaiting review" row, and null/REJECTED
+// both invite tapping through to IdentityVerificationScreen (REJECTED
+// reaches that screen's own resubmit flow).
+@Composable
+private fun VerificationRow(status: String?, onClick: () -> Unit) {
+    when (status) {
+        "APPROVED" -> OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Identity verified")
+        }
+        "PENDING" -> OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Filled.Shield, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Verification pending")
+        }
+        else -> OutlinedButton(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Filled.Shield, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Verify your identity")
+        }
+    }
 }
 
 @Composable

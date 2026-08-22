@@ -532,9 +532,29 @@ class AuthRepository {
                     name = doc.getString("name") ?: "",
                     username = doc.getString("username") ?: "",
                     createdAt = doc.getLong("createdAt") ?: 0L,
-                    emailVerified = doc.getBoolean("emailVerified") ?: false
+                    emailVerified = doc.getBoolean("emailVerified") ?: false,
+                    identityVerified = doc.getBoolean("identityVerified") ?: false
                 )
             )
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // Denormalizes an approved identityVerifications/{uid} submission onto
+    // the public profile SellerProfileScreen reads for OTHER users — a
+    // different uid than the one being written, which only firestore.rules'
+    // admin-only publicProfiles carve-out permits (hasOnly(['identityVerified']),
+    // true-only, no revoke path yet). Called by AdminIdentityVerificationsViewModel
+    // right after IdentityVerificationRepository.approve() — two separate
+    // writes for one admin action, same shape as OrderViewModel.verifyPayment()
+    // writing to orders then separately to sellerNotifications.
+    suspend fun markIdentityVerified(uid: String): Result<Unit> {
+        return try {
+            firestore.collection("publicProfiles").document(uid)
+                .set(mapOf("identityVerified" to true), SetOptions.merge())
+                .awaitResult()
+            Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }

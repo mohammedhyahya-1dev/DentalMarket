@@ -395,10 +395,103 @@ service cloud.firestore {
       // validated value) — no blank exception, always isValidUsername.
       // isOwnedUsername (see its own comment above) is what actually stops
       // two accounts from ending up with the identical public username.
-      allow create, update: if isSignedIn() && request.auth.uid == uid &&
-        isValidUsername(request.resource.data.username) &&
-        !isReservedUsername(request.resource.data.username) &&
-        isOwnedUsername(request.resource.data.username);
+      //
+      // Second branch: admin approving an identityVerifications/{uid}
+      // submission (see that collection below) also denormalizes
+      // identityVerified=true here, same as every other field on this doc —
+      // but admin is a DIFFERENT uid than the profile owner, so without this
+      // branch the write would fail isOwnedUsername's request.auth.uid ==
+      // uid check entirely. hasOnly(['identityVerified']) is what keeps this
+      // narrow: admin can flip that one field and nothing else on a
+      // stranger's public profile. One-way (true only, no revoke path yet)
+      // — see Known Gaps memory for that as a future item.
+      //
+      // The owner's own branch below is now ALSO restricted to a fixed
+      // field set — without that, it would have been the real hole: this
+      // rule has never used hasOnly() on the owner branch (proven by the
+      // "extra name/createdAt/emailVerified field... still succeeds" tests
+      // above), so a plain, unrestricted owner write could otherwise smuggle
+      // identityVerified=true into an ordinary username change and
+      // self-approve. username/name/createdAt/emailVerified are every field
+      // the owner's OWN code (AuthRepository.writeUsernameToProfile,
+      // isEmailVerifiedFresh) ever legitimately writes here — identityVerified
+      // deliberately isn't one of them.
+      // resource is null on create (no prior doc to diff against) — every
+      // other diff(resource.data) in this file only ever guards an
+      // update-only rule, so this is the first branch that has to handle
+      // both; the ternary falls back to the created doc's own keys in that
+      // case, which is the correct equivalent ("every key this write
+      // introduces" instead of "every key this write changed"). `firebase
+      // deploy` warns that the two ternary branches (List vs Set) have
+      // different types — harmless; .hasOnly() works on both, and tests
+      // 1-4/16-18 in identityVerification.rules.test.mjs exercise both
+      // branches directly against the real rules engine.
+      allow create, update: if
+        (isSignedIn() && request.auth.uid == uid &&
+         isValidUsername(request.resource.data.username) &&
+         !isReservedUsername(request.resource.data.username) &&
+         isOwnedUsername(request.resource.data.username) &&
+         (resource == null ? request.resource.data.keys() :
+           request.resource.data.diff(resource.data).affectedKeys())
+           .hasOnly(['username', 'name', 'createdAt', 'emailVerified'])) ||
+        (isAdmin() && resource != null &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['identityVerified']) &&
+         request.resource.data.identityVerified == true);
+      allow delete: if false;
+    }
+
+    // identityVerifications/{uid}: one doc per account, keyed by uid — same
+    // single-doc-per-entity convention as publicProfiles/{uid}, ratings/
+    // {orderId} and disputes/{orderId}, with no history kept across
+    // rejected/resubmitted attempts (a resubmit overwrites the doc's
+    // image-path fields and flips status back to PENDING). Holds the 4
+    // Storage PATHS (never a getDownloadURL() string — see
+    // IdentityVerificationRepository's own comment on why that distinction
+    // matters for a "must stay private" collection), reviewed by the single
+    // admin account via AdminIdentityVerificationsScreen.
+    function isValidVerificationStatus(status) {
+      return status in ['PENDING', 'APPROVED', 'REJECTED'];
+    }
+
+    function hasAllVerificationImages(data) {
+      return data.nationalIdFrontPath is string && data.nationalIdFrontPath != '' &&
+        data.nationalIdBackPath is string && data.nationalIdBackPath != '' &&
+        data.dentalAssocIdFrontPath is string && data.dentalAssocIdFrontPath != '' &&
+        data.dentalAssocIdBackPath is string && data.dentalAssocIdBackPath != '';
+    }
+
+    match /identityVerifications/{uid} {
+      allow get: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      // Owner never needs this — their own doc id is their own uid, so they
+      // just get() it directly. Only the admin review queue enumerates
+      // across accounts.
+      allow list: if isAdmin();
+      // First submission. uid must match both the doc id and the owner
+      // making the request — mirrors orders/{orderId}'s buyerId check.
+      allow create: if isSignedIn() && request.auth.uid == uid &&
+        request.resource.data.uid == uid &&
+        request.resource.data.status == 'PENDING' &&
+        hasAllVerificationImages(request.resource.data);
+      // Two very different actors, two very different allowances — an
+      // owner can only ever restart from REJECTED back to PENDING with a
+      // fresh set of images (a resubmit); admin can only ever move PENDING
+      // to APPROVED or REJECTED. Neither can do the other's job: the owner
+      // can't self-approve, and admin can't inject different image paths
+      // while "reviewing".
+      allow update: if isSignedIn() &&
+        ((request.auth.uid == uid &&
+          resource.data.status == 'REJECTED' &&
+          request.resource.data.status == 'PENDING' &&
+          hasAllVerificationImages(request.resource.data) &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'submittedAt', 'nationalIdFrontPath', 'nationalIdBackPath',
+                      'dentalAssocIdFrontPath', 'dentalAssocIdBackPath'])) ||
+         (isAdmin() &&
+          resource.data.status == 'PENDING' &&
+          isValidVerificationStatus(request.resource.data.status) &&
+          request.resource.data.status != 'PENDING' &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'reviewedAt', 'rejectionReason'])));
       allow delete: if false;
     }
 

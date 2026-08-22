@@ -112,7 +112,10 @@ fun SellerProfileScreen(
     // 0/false until the publicProfiles read below completes, same as
     // username/displayName above.
     var memberSinceMillis by remember { mutableStateOf(0L) }
-    var isEmailVerified by remember { mutableStateOf(false) }
+    // The real, admin-approved identity check — NOT email verification.
+    // See identityVerifications/{uid} and firestore.rules' publicProfiles
+    // carve-out for how this gets set; the owner can never set it themselves.
+    var isIdentityVerified by remember { mutableStateOf(false) }
 
     LaunchedEffect(sellerId) {
         listingRepository.getListingsBySeller(sellerId)
@@ -123,7 +126,7 @@ fun SellerProfileScreen(
         authRepository.getPublicProfile(sellerId).onSuccess { profile ->
             username = profile.username
             memberSinceMillis = profile.createdAt
-            isEmailVerified = profile.emailVerified
+            isIdentityVerified = profile.identityVerified
             if (sellerName.isBlank() && profile.name.isNotBlank()) {
                 displayName = profile.name
             }
@@ -276,7 +279,7 @@ fun SellerProfileScreen(
                 if (memberSinceMillis > 0) {
                     AboutRow(Icons.Filled.CalendarToday, "Member since ${memberSinceYear(memberSinceMillis)}")
                 }
-                if (isEmailVerified) {
+                if (isIdentityVerified) {
                     AboutRow(Icons.Filled.Shield, "Identity verified")
                 }
                 AboutRow(Icons.Filled.Sell, "${allListings.size} items listed, $soldCount items sold")

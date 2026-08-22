@@ -22,10 +22,12 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.dentalmarket.app.ui.screens.AdminIdentityVerificationsScreen
 import com.dentalmarket.app.ui.screens.AdminInquiriesScreen
 import com.dentalmarket.app.ui.screens.AdminOrdersScreen
 import com.dentalmarket.app.ui.screens.CartScreen
 import com.dentalmarket.app.ui.screens.CompleteProfileScreen
+import com.dentalmarket.app.ui.screens.IdentityVerificationScreen
 import com.dentalmarket.app.ui.screens.ListingDetailScreen
 import com.dentalmarket.app.ui.screens.LoginScreen
 import com.dentalmarket.app.ui.screens.MarketplaceScreen
@@ -253,9 +255,11 @@ fun DentalMarketApp(deepLinkUri: Uri? = null, onDeepLinkConsumed: () -> Unit = {
             CompleteProfileScreen(
                 authViewModel = authViewModel,
                 onComplete = {
-                    // MarketplaceScreen itself now decides whether to show
-                    // the notification-permission dialog.
-                    navController.navigate("marketplace") {
+                    // One optional stop before marketplace now — see
+                    // "identityVerification?fromOnboarding={fromOnboarding}"
+                    // below, which is what actually navigates to
+                    // marketplace once Skip or Submit is pressed there.
+                    navController.navigate("identityVerification?fromOnboarding=true") {
                         popUpTo("completeProfile") { inclusive = true }
                     }
                 },
@@ -269,6 +273,42 @@ fun DentalMarketApp(deepLinkUri: Uri? = null, onDeepLinkConsumed: () -> Unit = {
                     }
                 }
             )
+        }
+        composable(
+            "identityVerification?fromOnboarding={fromOnboarding}",
+            arguments = listOf(
+                navArgument("fromOnboarding") { type = NavType.BoolType; defaultValue = false }
+            )
+        ) { backStackEntry ->
+            if (authViewModel.isAnonymous) {
+                LaunchedEffect(Unit) { navController.popBackStack() }
+            } else {
+                val fromOnboarding = backStackEntry.arguments?.getBoolean("fromOnboarding") ?: false
+                IdentityVerificationScreen(
+                    showSkip = fromOnboarding,
+                    onDone = {
+                        if (fromOnboarding) {
+                            // Same "start completely fresh" idiom onSignOut
+                            // uses elsewhere in this file — the whole
+                            // onboarding stack (authGate, completeProfile,
+                            // this screen) should never be back-navigable
+                            // into once onboarding is done.
+                            navController.navigate("marketplace") {
+                                popUpTo(0) { inclusive = true }
+                            }
+                        } else {
+                            navController.popBackStack()
+                        }
+                    }
+                )
+            }
+        }
+        composable("adminIdentityVerifications") {
+            if (authViewModel.isAdmin) {
+                AdminIdentityVerificationsScreen(onBack = { navController.popBackStack() })
+            } else {
+                LaunchedEffect(Unit) { navController.popBackStack() }
+            }
         }
         composable("marketplace") {
             MarketplaceScreen(
@@ -344,7 +384,9 @@ fun DentalMarketApp(deepLinkUri: Uri? = null, onDeepLinkConsumed: () -> Unit = {
                     },
                     onMyQuestionsClick = { navController.navigate("myQuestions") },
                     onAdminInquiriesClick = { navController.navigate("adminInquiries") },
-                    onWatchlistClick = { navController.navigate("watchlist") }
+                    onWatchlistClick = { navController.navigate("watchlist") },
+                    onVerifyIdentityClick = { navController.navigate("identityVerification") },
+                    onAdminIdentityVerificationsClick = { navController.navigate("adminIdentityVerifications") }
                 )
             }
         }

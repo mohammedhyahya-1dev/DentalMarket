@@ -1,0 +1,12 @@
+{
+  "name": "dentalmarket-storage-rules-tests",
+  "private": true,
+  "type": "module",
+  "description": "Security-rules regression tests run against the Storage emulator — same role as firestore-tests/, but for storage.rules.",
+  "scripts": {
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "5.0.2"
+  }
+}

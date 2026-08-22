@@ -1,0 +1,55 @@
+rules_version = '2';
+
+// The most security-sensitive rule set in this app: identity-verification
+// images (national ID + dental-association ID, front/back) are never public
+// like every other feature built so far — only the owner and admin can ever
+// read them. Mirrors firestore.rules' isAdmin() allowlist exactly (Storage
+// rules can't import Firestore's functions, so this is its own copy).
+//
+// Deliberately does NOT call firestore.get()/firestore.exists() to block
+// overwriting an already-APPROVED submission's images, even though that
+// would be a nice extra guarantee. It was actually built and empirically
+// verified working against the LOCAL EMULATOR (see storage-tests/ git
+// history) — but the very first real upload against this project's live
+// Storage bucket failed with a flat 403 "Permission denied," and removing
+// the firestore.get()/exists() calls was what fixed it. Cross-service
+// Storage-to-Firestore rule calls apparently don't work the same way in
+// this project's production environment as they do in the emulator, and
+// there was no time to chase why on a brand-new bucket — so this went with
+// the safer, simpler, PROVEN-working rule instead of a broken one with a
+// nice-to-have. The real security boundary (owner/admin-only read, owner-
+// only write) doesn't depend on this at all; the only thing lost is
+// blocking an owner from re-uploading over their own already-approved
+// evidence via a raw Storage write that bypasses the app's own UI — a
+// narrow gap, tracked in the Known Gaps memory rather than silently
+// dropped.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email == 'p.mohammed.h.yahya@gmail.com';
+    }
+
+    // identityVerifications/{uid}/{nationalIdFront,nationalIdBack,
+    // dentalAssocIdFront,dentalAssocIdBack}.jpg — 4 fixed, deterministic
+    // filenames per account (see IdentityVerificationRepository), so a
+    // resubmit overwrites the previous rejected images at the same paths
+    // rather than accumulating orphans.
+    match /identityVerifications/{uid}/{fileName} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+
+      // Owner-only. Compression happens client-side before this — see
+      // ImageCompression/IdentityVerificationViewModel — the size cap here
+      // is a server-side backstop, same "client check + rules backstop"
+      // posture as username validation in firestore.rules.
+      allow write: if isSignedIn() && request.auth.uid == uid &&
+        request.resource.size < 3 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*');
+
+      allow delete: if false;
+    }
+  }
+}
