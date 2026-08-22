@@ -115,6 +115,28 @@ fun DentalMarketApp(deepLinkUri: Uri? = null, onDeepLinkConsumed: () -> Unit = {
         return if (sellerIndex >= 0 && !sellerId.isNullOrBlank()) "seller/$sellerId" else null
     }
 
+    // Not a real clickable web link — this shape only ever comes from
+    // IdentityVerificationMessagingService's own PendingIntent, which
+    // targets MainActivity directly rather than going through Android's
+    // implicit intent-filter resolution (see that class's own comment on
+    // why). Given the same https://.../{path}/{uid} shape as sellerRouteFor
+    // anyway, so a stray real visit to this URL just falls through as an
+    // unrecognized link rather than doing anything unexpected — there's no
+    // AndroidManifest intent-filter or public HTML fallback for it, and
+    // deliberately none needed: this is an admin-only destination with no
+    // legitimate external entry point, and AdminIdentityVerificationsScreen
+    // already self-guards on isAdmin regardless.
+    fun adminVerificationRouteFor(uri: Uri): String? {
+        val segments = uri.pathSegments.orEmpty()
+        val index = segments.indexOf("adminVerification")
+        val uid = segments.getOrNull(index + 1)
+        return if (index >= 0 && !uid.isNullOrBlank()) {
+            "adminIdentityVerifications?highlightUid=$uid"
+        } else {
+            null
+        }
+    }
+
     // Handles a deep link that arrives once the app is already past authGate
     // (a live app on marketplace/product/etc. receiving a new intent via
     // onNewIntent). The cold-start deep link is instead resolved by authGate
@@ -127,7 +149,10 @@ fun DentalMarketApp(deepLinkUri: Uri? = null, onDeepLinkConsumed: () -> Unit = {
     // the first one is a known, minor edge we don't handle.
     LaunchedEffect(deepLinkUri) {
         if (deepLinkUri == null || navController.currentDestination?.route == "authGate") return@LaunchedEffect
-        val target = resetPasswordRouteFor(deepLinkUri) ?: sellerRouteFor(deepLinkUri) ?: return@LaunchedEffect
+        val target = resetPasswordRouteFor(deepLinkUri)
+            ?: sellerRouteFor(deepLinkUri)
+            ?: adminVerificationRouteFor(deepLinkUri)
+            ?: return@LaunchedEffect
         onDeepLinkConsumed()
         navController.navigate(target)
     }
@@ -155,6 +180,7 @@ fun DentalMarketApp(deepLinkUri: Uri? = null, onDeepLinkConsumed: () -> Unit = {
                 // no longer race the deep link out from under itself.
                 val resetPasswordRoute = deepLinkUri?.let(::resetPasswordRouteFor)
                 val sellerRoute = deepLinkUri?.let(::sellerRouteFor)
+                val adminVerificationRoute = deepLinkUri?.let(::adminVerificationRouteFor)
                 onDeepLinkConsumed()
 
                 // Password reset doesn't need a resolved session, so it
@@ -172,8 +198,12 @@ fun DentalMarketApp(deepLinkUri: Uri? = null, onDeepLinkConsumed: () -> Unit = {
                     // Guests have no profile doc to check — skip straight to
                     // the seller deep link if there is one, else marketplace.
                     // MarketplaceScreen itself now decides whether to show
-                    // the notification-permission dialog.
-                    navController.navigate(sellerRoute ?: "marketplace") {
+                    // the notification-permission dialog. adminVerificationRoute
+                    // realistically never resolves for a guest (the push is
+                    // only ever sent to the admin's own device/session), but
+                    // if it somehow did, AdminIdentityVerificationsScreen's
+                    // own isAdmin guard bounces it harmlessly either way.
+                    navController.navigate(sellerRoute ?: adminVerificationRoute ?: "marketplace") {
                         popUpTo("authGate") { inclusive = true }
                     }
                 }
@@ -198,14 +228,21 @@ fun DentalMarketApp(deepLinkUri: Uri? = null, onDeepLinkConsumed: () -> Unit = {
                     else -> {
                         // Fire-and-forget — backfills a username for any
                         // pre-existing account that doesn't have one yet,
-                        // without delaying the navigation below.
+                        // without delaying the navigation below. registerFcmToken()
+                        // is the same shape, a no-op for every non-admin account.
                         authViewModel.ensureUsername()
+                        authViewModel.registerFcmToken()
                         authViewModel.checkProfileComplete { complete ->
                             // An incomplete profile forces onboarding first —
-                            // the seller deep link is dropped in that case
-                            // rather than resumed after completeProfile, same
-                            // as it was already dropped in the old, racy code.
-                            val destination = if (!complete) "completeProfile" else (sellerRoute ?: "marketplace")
+                            // the seller/admin-verification deep link is
+                            // dropped in that case rather than resumed after
+                            // completeProfile, same as it was already dropped
+                            // in the old, racy code.
+                            val destination = if (!complete) {
+                                "completeProfile"
+                            } else {
+                                sellerRoute ?: adminVerificationRoute ?: "marketplace"
+                            }
                             navController.navigate(destination) {
                                 popUpTo("authGate") { inclusive = true }
                             }

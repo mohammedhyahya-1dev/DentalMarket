@@ -127,6 +127,14 @@ class AuthViewModel : ViewModel() {
     fun ensureUsername() {
         viewModelScope.launch { repository.ensureUsername() }
     }
+
+    // Fire-and-forget, same shape as ensureUsername() above — see
+    // AuthRepository.registerFcmToken() for why authGate needs to call this
+    // on every login, not just rely on the messaging service's onNewToken().
+    fun registerFcmToken() {
+        viewModelScope.launch { repository.registerFcmToken() }
+    }
+
     fun sendPasswordReset(email: String, onSuccess: () -> Unit) {
         if (email.isBlank()) {
             _errorMessage.value = "Please enter your email"

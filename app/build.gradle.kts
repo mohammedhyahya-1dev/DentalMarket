@@ -62,6 +62,10 @@ dependencies {
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-storage")
+    // Real device push (identity-verification submissions notify the admin
+    // even with the app closed) — the send side lives server-only in
+    // functions/, this is just the receive/register side.
+    implementation("com.google.firebase:firebase-messaging")
     implementation(libs.credentials)
     implementation(libs.credentials.play.services.auth)
     implementation(libs.googleid)

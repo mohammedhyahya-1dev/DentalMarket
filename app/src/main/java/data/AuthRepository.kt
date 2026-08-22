@@ -11,6 +11,7 @@ import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.firestore.SetOptions
+import com.google.firebase.messaging.FirebaseMessaging
 
 // The single admin account's uid — mirrors adminEmails below, but by uid,
 // since firestore.rules' sellerNotifications create rule and
@@ -584,6 +585,42 @@ class AuthRepository {
                 .set(updates, SetOptions.merge())
                 .awaitResult()
             Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // Saves an already-known token — called by
+    // IdentityVerificationMessagingService.onNewToken(), which the FCM SDK
+    // itself hands a fresh token to (no fetch needed there). The existing
+    // users/{userId} rule already restricts this write to the signed-in
+    // owner with no extra change needed — see IdentityVerification rules
+    // tests for the write-only-your-own-token proof.
+    suspend fun updateFcmToken(token: String): Result<Unit> {
+        return try {
+            val uid = auth.currentUser?.uid ?: throw Exception("Not signed in")
+            firestore.collection("users").document(uid)
+                .set(mapOf("fcmToken" to token), SetOptions.merge())
+                .awaitResult()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // Best-effort, called speculatively on every admin login (see authGate)
+    // — same "safe to call every time" posture as ensureUsername(). Needed
+    // in addition to onNewToken() above: that only fires on a genuine fresh
+    // token/rotation, so a device that already had a token BEFORE ever
+    // being signed in as admin would otherwise never get one saved. A no-op
+    // for every non-admin account — only ever meaningful for ADMIN_UID,
+    // since functions/index.js reads this exact field off that exact uid
+    // and nothing else's token is ever read by anything.
+    suspend fun registerFcmToken(): Result<Unit> {
+        if (!isAdmin) return Result.success(Unit)
+        return try {
+            val token = FirebaseMessaging.getInstance().token.awaitResult()
+            updateFcmToken(token)
         } catch (e: Exception) {
             Result.failure(e)
         }

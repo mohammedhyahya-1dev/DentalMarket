@@ -347,3 +347,24 @@ test('21. a writeUsernameToProfile-style merge preserves createdAt/emailVerified
     assert.equal(doc.data().emailVerified, true);
   });
 });
+
+// The push-notification feature's token storage (AuthRepository.updateFcmToken/
+// registerFcmToken, IdentityVerificationMessagingService.onNewToken) needed
+// no rules CHANGE — users/{userId}'s existing self-write rule already
+// covers an arbitrary new field like fcmToken with no extra work. This is
+// the direct proof of that claim, same "don't just assert it, test it"
+// posture as test 17's own comment.
+test('22. a signed-in user can write their own fcmToken, but not another uid\'s', async () => {
+  const alice = testEnv.authenticatedContext('alice').firestore();
+  await assertSucceeds(
+    alice.collection('users').doc('alice').set(
+      { uid: 'alice', name: 'Alice', email: 'a@example.com', username: '', fcmToken: 'token-abc' },
+      { merge: true }
+    )
+  );
+  await assertFails(
+    alice.collection('users').doc('bob').set(
+      { fcmToken: 'hijacked-token' }, { merge: true }
+    )
+  );
+});

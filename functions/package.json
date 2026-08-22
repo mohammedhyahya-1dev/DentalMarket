@@ -1,0 +1,16 @@
+{
+  "name": "dentalmarket-functions",
+  "description": "Server-side triggers this app cannot safely run client-side — currently just the one: pushing a real FCM notification to the admin's device the moment a user submits or resubmits an identity verification. Sending to a specific device needs Admin SDK credentials, which can never live in the Android APK (anyone could decompile it and impersonate the server) — that's the whole reason this directory exists.",
+  "private": true,
+  "engines": {
+    "node": "20"
+  },
+  "main": "index.js",
+  "scripts": {
+    "logs": "firebase functions:log"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^5.1.1"
+  }
+}

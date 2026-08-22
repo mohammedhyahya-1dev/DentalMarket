@@ -30,5 +30,12 @@ data class DentalUser(
     // usernames/{name} reservation collection (see AuthRepository).
     // Auto-generated silently ("user" + digits) for every account that
     // doesn't have one yet, editable afterward from ProfileScreen.
-    val username: String = ""
+    val username: String = "",
+    // Only ever meaningfully populated on ADMIN_UID's own doc — see
+    // AuthRepository.updateFcmToken/registerFcmToken and
+    // functions/index.js, which is the only thing that ever reads it.
+    // Present here just so toObject() deserialization has somewhere to put
+    // it instead of logging a "no setter/field found" warning on every
+    // profile load once this field exists on the document.
+    val fcmToken: String = ""
 )
