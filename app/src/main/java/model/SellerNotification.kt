@@ -20,6 +20,11 @@ object SellerNotificationType {
     // Created by admin when they resolve a dispute — see
     // OrderViewModel.resolveDispute(). resolution carries the outcome.
     const val DISPUTE_RESOLVED = "DISPUTE_RESOLVED"
+    // Created by a user's own client whenever they submit or resubmit an
+    // identity verification — see IdentityVerificationRepository. Not
+    // order-related, so orderId/deliveryAddress/deliveryContactPhone stay
+    // blank; buyerName is reused to carry the submitter's display label.
+    const val VERIFICATION_SUBMITTED = "VERIFICATION_SUBMITTED"
 }
 
 data class SellerNotification(

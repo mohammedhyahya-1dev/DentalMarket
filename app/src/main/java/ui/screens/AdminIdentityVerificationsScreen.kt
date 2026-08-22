@@ -1,6 +1,8 @@
 package com.dentalmarket.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -10,12 +12,18 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
 import com.dentalmarket.app.model.IdentityVerification
@@ -33,6 +41,7 @@ fun AdminIdentityVerificationsScreen(
     val imageUrls by viewModel.imageUrls
     val processingUid by viewModel.processingUid
     var rejectTarget by remember { mutableStateOf<IdentityVerification?>(null) }
+    var zoomedImageUrl by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) { viewModel.loadPendingSubmissions() }
 
@@ -67,7 +76,8 @@ fun AdminIdentityVerificationsScreen(
                             imageUrls = imageUrls,
                             isProcessing = processingUid == submission.uid,
                             onApprove = { viewModel.approve(submission.uid) },
-                            onRejectClick = { rejectTarget = submission }
+                            onRejectClick = { rejectTarget = submission },
+                            onImageClick = { url -> zoomedImageUrl = url }
                         )
                     }
                 }
@@ -84,6 +94,10 @@ fun AdminIdentityVerificationsScreen(
             }
         )
     }
+
+    zoomedImageUrl?.let { url ->
+        ZoomableImageDialog(url = url, onDismiss = { zoomedImageUrl = null })
+    }
 }
 
 @Composable
@@ -93,7 +107,8 @@ private fun SubmissionCard(
     imageUrls: Map<String, String>,
     isProcessing: Boolean,
     onApprove: () -> Unit,
-    onRejectClick: () -> Unit
+    onRejectClick: () -> Unit,
+    onImageClick: (String) -> Unit
 ) {
     Card(shape = RoundedCornerShape(16.dp)) {
         Column(modifier = Modifier.padding(14.dp).fillMaxWidth()) {
@@ -126,6 +141,7 @@ private fun SubmissionCard(
                                     .fillMaxWidth()
                                     .height(90.dp)
                                     .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
+                                    .clickable { onImageClick(url) }
                             )
                         } else {
                             Box(
@@ -194,4 +210,67 @@ private fun RejectVerificationDialog(
             }
         }
     )
+}
+
+// Full-screen pinch-to-zoom-and-pan viewer for a single ID thumbnail —
+// these are the one place in this admin screen where actually reading the
+// card's text matters. Built on plain Compose foundation gestures
+// (detectTransformGestures + graphicsLayer), no new dependency beyond the
+// Coil AsyncImage already in use elsewhere on this screen. Dismiss is a
+// close button (always visible, unambiguous) plus system back — not a tap
+// on the image itself, since that would collide with "tap to reset zoom"
+// gestures every other photo viewer in Android already trains people to
+// expect here.
+@Composable
+private fun ZoomableImageDialog(url: String, onDismiss: () -> Unit) {
+    var scale by remember(url) { mutableStateOf(1f) }
+    var offsetX by remember(url) { mutableStateOf(0f) }
+    var offsetY by remember(url) { mutableStateOf(0f) }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .pointerInput(url) {
+                    detectTransformGestures { _, pan, zoom, _ ->
+                        val newScale = (scale * zoom).coerceIn(1f, 6f)
+                        // Clamp panning to how far the scaled image can
+                        // actually extend past the viewport — otherwise a
+                        // zoomed-in pan can drag the image edge into the
+                        // middle of the screen with empty space around it.
+                        val maxOffsetX = (size.width * (newScale - 1)) / 2f
+                        val maxOffsetY = (size.height * (newScale - 1)) / 2f
+                        scale = newScale
+                        offsetX = if (newScale <= 1f) 0f else (offsetX + pan.x).coerceIn(-maxOffsetX, maxOffsetX)
+                        offsetY = if (newScale <= 1f) 0f else (offsetY + pan.y).coerceIn(-maxOffsetY, maxOffsetY)
+                    }
+                }
+        ) {
+            AsyncImage(
+                model = url,
+                contentDescription = "Zoomed identity document",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer(
+                        scaleX = scale,
+                        scaleY = scale,
+                        translationX = offsetX,
+                        translationY = offsetY
+                    )
+            )
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+            ) {
+                Icon(Icons.Filled.Close, contentDescription = "Close", tint = Color.White)
+            }
+        }
+    }
 }

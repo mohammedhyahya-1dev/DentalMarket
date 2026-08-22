@@ -22,6 +22,7 @@ class IdentityVerificationRepository {
     private val firestore = FirebaseFirestore.getInstance()
     private val storage = FirebaseStorage.getInstance()
     private val collection = firestore.collection("identityVerifications")
+    private val notificationRepository = SellerNotificationRepository()
 
     // Deterministic path per uid+slot — a resubmit overwrites the previous
     // rejected image at the same path instead of accumulating orphaned
@@ -76,6 +77,7 @@ class IdentityVerificationRepository {
                     "submittedAt" to System.currentTimeMillis()
                 ) + paths
             ).awaitResult()
+            notifyAdminOfSubmission(uid)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -95,9 +97,27 @@ class IdentityVerificationRepository {
                 ) + paths,
                 SetOptions.merge()
             ).awaitResult()
+            notifyAdminOfSubmission(uid)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    // Best-effort — a failure here shouldn't fail the submission itself
+    // (same posture as OrderViewModel.verifyPayment()'s notification call).
+    // Reuses the EXISTING sellerNotifications bell/badge system rather than
+    // any new infrastructure; see firestore.rules for the matching
+    // VERIFICATION_SUBMITTED create rule this write has to satisfy.
+    private suspend fun notifyAdminOfSubmission(uid: String) {
+        try {
+            val userDoc = firestore.collection("users").document(uid).get().awaitResult()
+            val name = userDoc.getString("name")?.takeIf { it.isNotBlank() } ?: "A user"
+            val username = userDoc.getString("username")?.takeIf { it.isNotBlank() }
+            val label = if (username != null) "$name (@$username)" else name
+            notificationRepository.createVerificationSubmittedNotification(ADMIN_UID, label)
+        } catch (e: Exception) {
+            // Ignored — see comment above.
         }
     }
 

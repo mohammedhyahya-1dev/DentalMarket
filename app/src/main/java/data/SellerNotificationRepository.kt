@@ -67,6 +67,25 @@ class SellerNotificationRepository {
         }
     }
 
+    // Self-initiated — see firestore.rules' sellerNotifications create rule
+    // for the VERIFICATION_SUBMITTED-specific path that lets a non-admin
+    // user write into the admin's own notification feed (recipientId must
+    // equal the hardcoded ADMIN_UID, same as AuthRepository's).
+    suspend fun createVerificationSubmittedNotification(recipientId: String, submitterLabel: String): Result<Unit> {
+        return try {
+            val notification = SellerNotification(
+                recipientId = recipientId,
+                listingName = "Identity Verification Submitted",
+                buyerName = submitterLabel,
+                type = SellerNotificationType.VERIFICATION_SUBMITTED
+            )
+            notificationsCollection.add(notification).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun getNotificationsForSeller(sellerId: String): Result<List<SellerNotification>> {
         return try {
             val snapshot = notificationsCollection.whereEqualTo("recipientId", sellerId).get().await()

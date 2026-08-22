@@ -313,3 +313,53 @@ test('18. owner can still update username/name after admin has already set ident
     assert.equal(doc.data().identityVerified, true);
   });
 });
+
+// --- sellerNotifications VERIFICATION_SUBMITTED (bell/badge trigger) ---
+// isAdminUid() is hardcoded to the real admin account's uid (matches
+// AuthRepository.kt's ADMIN_UID) rather than an email allowlist like
+// isAdmin() elsewhere in this file — a submitting user has no way to look
+// up "the admin's uid" via a list query (users/{userId} has no list rule),
+// so the notification's recipientId has to be checked against that same
+// fixed value directly.
+const ADMIN_UID = 'RsPc63uPStWdxugOKk10l51TCB63';
+
+test('19. a signed-in user can notify the admin that they submitted identity verification', async () => {
+  const alice = testEnv.authenticatedContext('alice').firestore();
+  await assertSucceeds(
+    alice.collection('sellerNotifications').add({
+      recipientId: ADMIN_UID,
+      listingName: 'Identity Verification Submitted',
+      buyerName: 'Alice Example (@aliceuser)',
+      type: 'VERIFICATION_SUBMITTED'
+    })
+  );
+});
+
+test('20. a VERIFICATION_SUBMITTED notification cannot target a non-admin uid (spam prevention)', async () => {
+  const alice = testEnv.authenticatedContext('alice').firestore();
+  await assertFails(
+    alice.collection('sellerNotifications').add({
+      recipientId: 'bob',
+      listingName: 'Identity Verification Submitted',
+      buyerName: 'Alice Example (@aliceuser)',
+      type: 'VERIFICATION_SUBMITTED'
+    })
+  );
+});
+
+test('21. only the admin (recipient) can read a VERIFICATION_SUBMITTED notification', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await ctx.firestore().collection('sellerNotifications').doc('notif1').set({
+      recipientId: ADMIN_UID,
+      listingName: 'Identity Verification Submitted',
+      buyerName: 'Alice Example (@aliceuser)',
+      type: 'VERIFICATION_SUBMITTED',
+      read: false
+    });
+  });
+  const alice = testEnv.authenticatedContext('alice').firestore();
+  await assertFails(alice.collection('sellerNotifications').doc('notif1').get());
+
+  const admin = testEnv.authenticatedContext(ADMIN_UID, { email: 'p.mohammed.h.yahya@gmail.com' }).firestore();
+  await assertSucceeds(admin.collection('sellerNotifications').doc('notif1').get());
+});

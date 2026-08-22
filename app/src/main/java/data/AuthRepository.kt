@@ -12,6 +12,16 @@ import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.firestore.SetOptions
 
+// The single admin account's uid — mirrors adminEmails below, but by uid,
+// since firestore.rules' sellerNotifications create rule and
+// IdentityVerificationRepository's notification trigger both need to name
+// "the admin" as a write target/recipient, and there's no list rule on
+// users/{userId} a client could use to look this up from the email instead
+// (see that collection's own rule comment). Same fragility as adminEmails
+// itself: this breaks if the admin account is ever recreated, and there's
+// only ever been the one.
+const val ADMIN_UID = "RsPc63uPStWdxugOKk10l51TCB63"
+
 class AuthRepository {
 
     private val auth = FirebaseAuth.getInstance()

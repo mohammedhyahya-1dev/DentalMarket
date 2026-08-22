@@ -96,6 +96,10 @@ private fun NotificationCard(notification: SellerNotification) {
                     disputeResolvedMessage(notification.resolution),
                     style = MaterialTheme.typography.bodyMedium
                 )
+                SellerNotificationType.VERIFICATION_SUBMITTED -> Text(
+                    "${notification.buyerName} submitted documents for identity verification review.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
                 else -> {
                     Text("Buyer: ${notification.buyerName}", style = MaterialTheme.typography.bodyMedium)
                     Text("Deliver to: ${notification.deliveryAddress}", style = MaterialTheme.typography.bodyMedium)

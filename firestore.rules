@@ -32,6 +32,17 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.email in ['p.mohammed.h.yahya@gmail.com'];
     }
 
+    // The single admin account's uid — mirrors isAdmin()'s hardcoded email
+    // allowlist above, but by uid, for sellerNotifications/{id}'s
+    // VERIFICATION_SUBMITTED create rule below: a submitting (non-admin)
+    // user needs to name "the admin" as recipientId, and there's no list
+    // rule on users/{userId} a client could use to look this up from the
+    // email instead. Matches AuthRepository.kt's ADMIN_UID constant exactly
+    // — keep the two in sync if the admin account is ever recreated.
+    function isAdminUid(uid) {
+      return uid == 'RsPc63uPStWdxugOKk10l51TCB63';
+    }
+
     // Mirrors AuthRepository.isValidUsernameFormat/isUsernameAllowed exactly.
     // Used on every path that writes a username value — usernames/{name}'s
     // own doc id (the reservation), publicProfiles/{uid}.username (what
@@ -282,7 +293,15 @@ service cloud.firestore {
         (isSignedIn() &&
          request.resource.data.type == 'DISPUTE_OPENED' &&
          getOrder(request.resource.data.orderId).buyerId == request.auth.uid &&
-         request.resource.data.recipientId == getOrder(request.resource.data.orderId).sellerId);
+         request.resource.data.recipientId == getOrder(request.resource.data.orderId).sellerId) ||
+        // A user notifying the admin that they submitted/resubmitted their
+        // own identity verification — see IdentityVerificationRepository.
+        // Not order-related, so no getOrder() cross-check like the branch
+        // above; isAdminUid() is what keeps this from being a way to spam
+        // an arbitrary stranger's notification feed instead.
+        (isSignedIn() &&
+         request.resource.data.type == 'VERIFICATION_SUBMITTED' &&
+         isAdminUid(request.resource.data.recipientId));
       allow get, list: if isSignedIn() &&
         (resource.data.recipientId == request.auth.uid || isAdmin());
       // The recipient can only flip their own notification to read — never
