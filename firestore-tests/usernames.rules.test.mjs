@@ -296,3 +296,54 @@ test("19. completeProfile-style name-only merge is denied when publicProfiles do
     alice.collection('publicProfiles').doc('alice').set({ name: 'Alice Example' }, { merge: true })
   );
 });
+
+// Same proof as test 17, for the createdAt/emailVerified fields
+// writeUsernameToProfile() and isEmailVerifiedFresh() now also write onto
+// publicProfiles/{uid} (AuthRepository.kt) — the rule still only checks
+// ownership and validates username specifically, so these two extra fields
+// on the same write were never going to be rejected either.
+test('20. publicProfiles create/update with extra createdAt/emailVerified fields, alongside a validly-owned username, still succeeds', async () => {
+  const alice = testEnv.authenticatedContext('alice').firestore();
+
+  await assertSucceeds(
+    alice.collection('usernames').doc('createdattest').set({ uid: 'alice' })
+  );
+  await assertSucceeds(
+    alice.collection('publicProfiles').doc('alice')
+      .set({ username: 'createdattest', createdAt: 1700000000000, emailVerified: true })
+  );
+});
+
+// Pins down the SetOptions.merge() fix on writeUsernameToProfile()'s
+// publicProfiles write: before that fix, this line was a plain .set() with
+// no merge, which would have silently wiped createdAt/emailVerified on
+// every username change. This test proves the merge preserves them across
+// exactly that kind of write — it would fail if that .set() ever regresses
+// back to a full overwrite.
+test('21. a writeUsernameToProfile-style merge preserves createdAt/emailVerified across a username change', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await ctx.firestore().collection('usernames').doc('originalname').set({ uid: 'alice' });
+    await ctx.firestore().collection('publicProfiles').doc('alice').set({
+      username: 'originalname',
+      name: 'Alice Example',
+      createdAt: 1700000000000,
+      emailVerified: true
+    });
+  });
+
+  const alice = testEnv.authenticatedContext('alice').firestore();
+  await assertSucceeds(
+    alice.collection('usernames').doc('newname').set({ uid: 'alice' })
+  );
+  await assertSucceeds(
+    alice.collection('publicProfiles').doc('alice')
+      .set({ username: 'newname', name: 'Alice Example' }, { merge: true })
+  );
+
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const doc = await ctx.firestore().collection('publicProfiles').doc('alice').get();
+    assert.equal(doc.data().username, 'newname');
+    assert.equal(doc.data().createdAt, 1700000000000);
+    assert.equal(doc.data().emailVerified, true);
+  });
+});

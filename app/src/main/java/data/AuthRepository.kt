@@ -1,6 +1,7 @@
 package com.dentalmarket.app.data
 
 import com.dentalmarket.app.model.DentalUser
+import com.dentalmarket.app.model.PublicSellerProfile
 import com.google.firebase.FirebaseTooManyRequestsException
 import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
@@ -52,7 +53,25 @@ class AuthRepository {
             val user = auth.currentUser ?: return Result.success(false)
             user.reload().awaitResult()
             user.getIdToken(true).awaitResult()
-            Result.success(user.isEmailVerified)
+            val verified = user.isEmailVerified
+            // Best-effort, one-way sync onto the public copy SellerProfileScreen
+            // reads for other users — only ever written true, never false.
+            // Real verification can't revert, so there's no legitimate case for
+            // unsetting it, and this keeps a rare transient reload/token glitch
+            // from ever regressing an already-true badge. Same
+            // try/catch-and-ignore posture as completeProfile()'s name sync
+            // below: this doc may not exist yet (no owned username), which is
+            // a real, tolerated race, not worth blocking this call over.
+            if (verified) {
+                try {
+                    firestore.collection("publicProfiles").document(user.uid)
+                        .set(mapOf("emailVerified" to true), SetOptions.merge())
+                        .awaitResult()
+                } catch (e: Exception) {
+                    // Ignored — see comment above.
+                }
+            }
+            Result.success(verified)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -392,6 +411,13 @@ class AuthRepository {
         val normalizedNew = normalizeUsername(username)
         val userRef = firestore.collection("users").document(uid)
         val publicProfileRef = firestore.collection("publicProfiles").document(uid)
+        // Real Firebase Auth account-creation time for the signed-in user —
+        // only readable for yourself client-side, but that's exactly who this
+        // always runs for (both ensureUsername and changeUsername pass their
+        // own auth.currentUser?.uid). Falls back to now only in the
+        // unexpected case metadata is unavailable.
+        val accountCreatedAt = auth.currentUser?.metadata?.creationTimestamp
+            ?.takeIf { it > 0 } ?: System.currentTimeMillis()
 
         suspend fun attempt(): Result<Unit> = try {
             firestore.runTransaction { txn ->
@@ -404,11 +430,22 @@ class AuthRepository {
                 val userDoc = txn.get(userRef)
                 val currentUsername = userDoc.getString("username")
                 val name = userDoc.getString("name") ?: ""
+                // Write-once: a later username CHANGE must never reset this,
+                // so only stamp it the first time this doc is created.
+                val existingCreatedAt = txn.get(publicProfileRef).getLong("createdAt")
                 if (!currentUsername.isNullOrBlank() && normalizeUsername(currentUsername) != normalizedNew) {
                     txn.delete(firestore.collection("usernames").document(normalizeUsername(currentUsername)))
                 }
                 txn.set(userRef, mapOf("username" to username), SetOptions.merge())
-                txn.set(publicProfileRef, mapOf("username" to username, "name" to name))
+                txn.set(
+                    publicProfileRef,
+                    mapOf(
+                        "username" to username,
+                        "name" to name,
+                        "createdAt" to (existingCreatedAt ?: accountCreatedAt)
+                    ),
+                    SetOptions.merge()
+                )
                 null
             }.awaitResult()
             Result.success(Unit)
@@ -483,26 +520,21 @@ class AuthRepository {
     // The only cross-user profile read in the app — everything else reads
     // denormalized fields off listings/orders/ratings instead (see
     // users/{userId}'s own rule comment). Used by SellerProfileScreen so a
-    // changed username shows up immediately rather than being frozen at
-    // whatever it was when the seller last posted a listing.
-    suspend fun getPublicUsername(uid: String): Result<String?> {
+    // changed username/name shows up immediately rather than being frozen at
+    // whatever it was when the seller last posted a listing, and for the
+    // About section's "Member since"/"Identity verified" — one read for the
+    // whole doc rather than a separate round trip per field.
+    suspend fun getPublicProfile(uid: String): Result<PublicSellerProfile> {
         return try {
             val doc = firestore.collection("publicProfiles").document(uid).get().awaitResult()
-            Result.success(doc.getString("username"))
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    // Only needed as a fallback when a seller's screen is reached with no
-    // sellerName already in hand (a deep-link open, see SellerProfileScreen)
-    // — the in-app "Sold by X" tap already carries the name, so this is a
-    // separate call from getPublicUsername above rather than a combined
-    // fetch, kept simple since it only ever fires on that one path.
-    suspend fun getPublicName(uid: String): Result<String?> {
-        return try {
-            val doc = firestore.collection("publicProfiles").document(uid).get().awaitResult()
-            Result.success(doc.getString("name"))
+            Result.success(
+                PublicSellerProfile(
+                    name = doc.getString("name") ?: "",
+                    username = doc.getString("username") ?: "",
+                    createdAt = doc.getLong("createdAt") ?: 0L,
+                    emailVerified = doc.getBoolean("emailVerified") ?: false
+                )
+            )
         } catch (e: Exception) {
             Result.failure(e)
         }
