@@ -303,9 +303,17 @@ fun DentalMarketApp(deepLinkUri: Uri? = null, onDeepLinkConsumed: () -> Unit = {
                 )
             }
         }
-        composable("adminIdentityVerifications") {
+        composable(
+            "adminIdentityVerifications?highlightUid={highlightUid}",
+            arguments = listOf(
+                navArgument("highlightUid") { type = NavType.StringType; nullable = true; defaultValue = null }
+            )
+        ) { backStackEntry ->
             if (authViewModel.isAdmin) {
-                AdminIdentityVerificationsScreen(onBack = { navController.popBackStack() })
+                AdminIdentityVerificationsScreen(
+                    onBack = { navController.popBackStack() },
+                    highlightUid = backStackEntry.arguments?.getString("highlightUid")
+                )
             } else {
                 LaunchedEffect(Unit) { navController.popBackStack() }
             }
@@ -521,7 +529,13 @@ fun DentalMarketApp(deepLinkUri: Uri? = null, onDeepLinkConsumed: () -> Unit = {
             if (authViewModel.isAnonymous) {
                 LaunchedEffect(Unit) { navController.popBackStack() }
             } else {
-                SellerNotificationsScreen(onBack = { navController.popBackStack() })
+                SellerNotificationsScreen(
+                    onBack = { navController.popBackStack() },
+                    onOrderClick = { orderId -> navController.navigate("orderDetail/$orderId") },
+                    onVerificationSubmittedClick = { uid ->
+                        navController.navigate("adminIdentityVerifications?highlightUid=$uid")
+                    }
+                )
             }
         }
         composable("sellerOrders") {

@@ -1,5 +1,6 @@
 package com.dentalmarket.app.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -21,10 +22,18 @@ import java.util.Date
 // Deliberately just a flat list of handoff info, not the full seller-orders
 // view — no status tracker, no actions. See the roadmap note in
 // SellerNotification.kt.
+//
+// Tap-to-navigate was never wired up for ANY notification type before
+// today (DELIVERY_INFO/DISPUTE_OPENED/DISPUTE_RESOLVED all carry a real
+// orderId and went nowhere on tap) — fixed for all four types together
+// rather than leaving the pre-existing three broken while only wiring up
+// the new one.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SellerNotificationsScreen(
     onBack: () -> Unit,
+    onOrderClick: (String) -> Unit,
+    onVerificationSubmittedClick: (String) -> Unit,
     viewModel: NotificationViewModel = viewModel()
 ) {
     val notifications = viewModel.notifications.value
@@ -68,7 +77,22 @@ fun SellerNotificationsScreen(
                     contentPadding = PaddingValues(vertical = 12.dp)
                 ) {
                     items(notifications, key = { it.id }) { notification ->
-                        NotificationCard(notification)
+                        NotificationCard(
+                            notification = notification,
+                            onClick = {
+                                // orderId means different things per type —
+                                // a real order id for the three order-
+                                // related types, but the submitter's uid
+                                // for VERIFICATION_SUBMITTED (see
+                                // SellerNotificationRepository's own
+                                // comment on that reuse).
+                                if (notification.type == SellerNotificationType.VERIFICATION_SUBMITTED) {
+                                    onVerificationSubmittedClick(notification.orderId)
+                                } else if (notification.orderId.isNotBlank()) {
+                                    onOrderClick(notification.orderId)
+                                }
+                            }
+                        )
                     }
                 }
             }
@@ -77,8 +101,11 @@ fun SellerNotificationsScreen(
 }
 
 @Composable
-private fun NotificationCard(notification: SellerNotification) {
-    Card(shape = RoundedCornerShape(16.dp)) {
+private fun NotificationCard(notification: SellerNotification, onClick: () -> Unit) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.clickable(onClick = onClick)
+    ) {
         Column(modifier = Modifier.padding(14.dp).fillMaxWidth()) {
             Text(notification.listingName, style = MaterialTheme.typography.titleMedium)
             Text(

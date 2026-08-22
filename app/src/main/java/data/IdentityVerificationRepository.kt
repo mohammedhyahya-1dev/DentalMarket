@@ -115,7 +115,7 @@ class IdentityVerificationRepository {
             val name = userDoc.getString("name")?.takeIf { it.isNotBlank() } ?: "A user"
             val username = userDoc.getString("username")?.takeIf { it.isNotBlank() }
             val label = if (username != null) "$name (@$username)" else name
-            notificationRepository.createVerificationSubmittedNotification(ADMIN_UID, label)
+            notificationRepository.createVerificationSubmittedNotification(ADMIN_UID, uid, label)
         } catch (e: Exception) {
             // Ignored — see comment above.
         }

@@ -4,7 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.border
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -33,6 +35,11 @@ import com.dentalmarket.app.viewmodel.IdentityVerificationViewModel
 @Composable
 fun AdminIdentityVerificationsScreen(
     onBack: () -> Unit,
+    // Set when this screen is reached by tapping a VERIFICATION_SUBMITTED
+    // notification — scrolls to and highlights that one submission instead
+    // of just landing on the top of the list. Null for the plain
+    // ProfileScreen entry point, which has no specific submission in mind.
+    highlightUid: String? = null,
     viewModel: IdentityVerificationViewModel = viewModel()
 ) {
     val pending by viewModel.pendingSubmissions
@@ -42,8 +49,19 @@ fun AdminIdentityVerificationsScreen(
     val processingUid by viewModel.processingUid
     var rejectTarget by remember { mutableStateOf<IdentityVerification?>(null) }
     var zoomedImageUrl by remember { mutableStateOf<String?>(null) }
+    val listState = rememberLazyListState()
 
     LaunchedEffect(Unit) { viewModel.loadPendingSubmissions() }
+
+    // Runs once the real list arrives — highlightUid may name a submission
+    // that's already been approved/rejected by someone else since the
+    // notification was sent, in which case indexOfFirst just returns -1 and
+    // this is a no-op (falls back to landing on the plain list).
+    LaunchedEffect(pending, highlightUid) {
+        if (highlightUid == null) return@LaunchedEffect
+        val index = pending.indexOfFirst { it.uid == highlightUid }
+        if (index >= 0) listState.animateScrollToItem(index)
+    }
 
     Scaffold(
         topBar = {
@@ -65,6 +83,7 @@ fun AdminIdentityVerificationsScreen(
                 isLoading -> CircularProgressIndicator()
                 pending.isEmpty() -> Text("No pending submissions", style = MaterialTheme.typography.titleMedium)
                 else -> LazyColumn(
+                    state = listState,
                     modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(vertical = 12.dp)
@@ -75,6 +94,7 @@ fun AdminIdentityVerificationsScreen(
                             submitterLabel = submitterLabels[submission.uid] ?: submission.uid,
                             imageUrls = imageUrls,
                             isProcessing = processingUid == submission.uid,
+                            isHighlighted = submission.uid == highlightUid,
                             onApprove = { viewModel.approve(submission.uid) },
                             onRejectClick = { rejectTarget = submission },
                             onImageClick = { url -> zoomedImageUrl = url }
@@ -106,11 +126,19 @@ private fun SubmissionCard(
     submitterLabel: String,
     imageUrls: Map<String, String>,
     isProcessing: Boolean,
+    isHighlighted: Boolean,
     onApprove: () -> Unit,
     onRejectClick: () -> Unit,
     onImageClick: (String) -> Unit
 ) {
-    Card(shape = RoundedCornerShape(16.dp)) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        modifier = if (isHighlighted) {
+            Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(16.dp))
+        } else {
+            Modifier
+        }
+    ) {
         Column(modifier = Modifier.padding(14.dp).fillMaxWidth()) {
             Text(submitterLabel, style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(10.dp))
